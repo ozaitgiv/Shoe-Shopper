@@ -9,7 +9,7 @@ Upload a top-down photo of your insole on a sheet of paper and get shoe recommen
 |------------|-----------------------------------------------------------|
 | Front-end  | **Next.js 15** (App Router) · React 18 · TypeScript · Tailwind CSS |
 | Back-end   | **Django 5** · Django REST Framework · django-cors-headers |
-| Database   | **SQLite** for local dev → **Production DB TBD** (PostgreSQL or Supabase — final decision by **2025-07-02**) |
+| Database   | **SQLite** for local dev → **PostgreSQL** |
 | Tooling    | ESLint · Prettier · Node 20 · Python 3.11 |
 
 ---
@@ -34,4 +34,12 @@ pip install -r backend/requirements.txt
 cp backend/.env.example backend/.env   # add your SECRET_KEY, etc.
 python backend/manage.py migrate
 python backend/manage.py runserver 8000
+```
 
+### Front-end (in a new terminal)
+```bash
+cd frontend
+npm install
+cp .env.example .env.local             # set NEXT_PUBLIC_API_URL if needed
+npm run dev                            # http://localhost:3000
+```
