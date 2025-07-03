@@ -9,7 +9,7 @@ Upload a top-down photo of your insole on a sheet of paper and get shoe recommen
 |------------|-----------------------------------------------------------|
 | Front-end  | **Next.js 15** (App Router) · React 18 · TypeScript · Tailwind CSS |
 | Back-end   | **Django 5** · Django REST Framework · django-cors-headers |
-| Database   | **SQLite** for local dev → **PostgreSQL** |
+| Database   | **PostgreSQL** |
 | Tooling    | ESLint · Prettier · Node 20 · Python 3.11 |
 
 ---
@@ -29,9 +29,9 @@ Upload a top-down photo of your insole on a sheet of paper and get shoe recommen
 ```bash
 # from repo root
 python3 -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r backend/requirements.txt
-cp backend/.env.example backend/.env   # add your SECRET_KEY, etc.
+cp backend/.env.example backend/.env    # add your API keys, etc.
 python backend/manage.py migrate
 python backend/manage.py runserver 8000
 ```
@@ -40,6 +40,6 @@ python backend/manage.py runserver 8000
 ```bash
 cd frontend
 npm install
-cp .env.example .env.local             # set NEXT_PUBLIC_API_URL if needed
-npm run dev                            # http://localhost:3000
+cp .env.example .env.local  # set NEXT_PUBLIC_API_URL if needed
+npm run dev # http://localhost:3000
 ```
