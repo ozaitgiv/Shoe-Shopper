@@ -1,0 +1,15 @@
+<!-- core/templates/upload_form.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Upload Foot Image</title>
+</head>
+<body>
+    <h1>Upload Foot Image</h1>
+    <form method="POST" enctype="multipart/form-data" action="/api/upload/">
+        {% csrf_token %}
+        <input type="file" name="image" accept="image/*" required>
+        <button type="submit">Upload</button>
+    </form>
+</body>
+</html>
