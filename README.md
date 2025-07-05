@@ -43,3 +43,14 @@ npm install
 cp .env.example .env.local  # set NEXT_PUBLIC_API_URL if needed
 npm run dev # http://localhost:3000
 ```
+
+### Database 
+```bash
+# from Root directory
+cd backend
+pip install Django djangorestframework django-cors-headers psycopg2-binary Pillow
+# or run requirements.txt
+python manage.py migrate
+python manage.py createsuperuser #Optional, for Admin Process
+python manage.py runserver
+```
