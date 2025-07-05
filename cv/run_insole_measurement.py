@@ -1,5 +1,9 @@
 from inference_sdk import InferenceHTTPClient
+from dotenv import load_dotenv
 import json
+import os
+
+load_dotenv()
 
 dbg = False 
 
@@ -15,7 +19,7 @@ class InsoleNotFoundError(Exception):
 # Initialize client with your API key
 client = InferenceHTTPClient(
     api_url="https://serverless.roboflow.com",
-    api_key="RJfoVLfQdb1LgefOjoTM"
+    api_key = os.environ["ROBOFLOW_API_KEY"]
 )
 
 def run_insole_workflow(image_path):
