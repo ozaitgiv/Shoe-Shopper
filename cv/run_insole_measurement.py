@@ -1,6 +1,9 @@
 from inference_sdk import InferenceHTTPClient
+from dotenv import load_dotenv
 import json
 import os
+
+load_dotenv()
 
 dbg = False 
 
