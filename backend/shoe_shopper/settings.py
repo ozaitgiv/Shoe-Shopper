@@ -12,6 +12,8 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 
+import os  # OS Import Added
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -40,6 +42,7 @@ INSTALLED_APPS = [
     # Third-party apps
     'rest_framework',
     'corsheaders',
+    'rest_framework.authtoken',  # Added this line
 
     # Your custom app
     'core',
@@ -57,10 +60,6 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'shoe_shopper.urls'
-
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-]
 
 TEMPLATES = [
     {
@@ -80,13 +79,18 @@ TEMPLATES = [
 WSGI_APPLICATION = 'shoe_shopper.wsgi.application'
 
 
-# Database
+# Database 
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
+# Updated to use PostgreSQL with environment variables
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.getenv('DB_NAME', 'shoe_recommendation_db'),
+        'USER': os.getenv('DB_USER', 'shoe_app_user'),
+        'PASSWORD': os.getenv('DB_PASSWORD', 'your_secure_password'),
+        'HOST': os.getenv('DB_HOST', 'localhost'),
+        'PORT': os.getenv('DB_PORT', '5432'),
     }
 }
 
@@ -135,8 +139,27 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # CORS settings
 CORS_ALLOW_ALL_ORIGINS = True
 
-# Needed for storing images (later)
-import os 
-
+# Needed for storing images (later) - KEEP EXISTING
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+
+# NEW SECTIONS ADDED FROM HERE ----- 
+
+# REST Framework configuration
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+}
+
+# Load environment variables from .env file (optional)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
