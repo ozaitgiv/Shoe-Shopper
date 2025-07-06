@@ -107,7 +107,7 @@ export default function Dashboard() {
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Measure Your Feet</h2>
           <p className="text-gray-600">
-            Upload a photo of your insole on paper to get accurate measurements and personalized shoe recommendations.
+            Upload a photo of your foot on paper to get accurate measurements and personalized shoe recommendations.
           </p>
         </div>
 
@@ -118,10 +118,10 @@ export default function Dashboard() {
               <div className="px-6 py-4 border-b border-gray-200">
                 <div className="flex items-center space-x-2">
                   <Camera className="h-5 w-5" />
-                  <h3 className="text-lg font-semibold text-gray-900">Upload Insole Photo</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">Upload Foot Photo</h3>
                 </div>
                 <p className="text-sm text-gray-600 mt-1">
-                  Place your insole on a piece of paper and take a clear photo from directly above
+                  Place your foot on a piece of paper and take a clear photo from directly above. Align your heel with the back edge of the paper.
                 </p>
               </div>
               <div className="p-6">
@@ -157,7 +157,7 @@ export default function Dashboard() {
                     <div className="relative">
                       <Image
                         src={uploadedImage || "/placeholder.svg"}
-                        alt="Uploaded insole"
+                        alt="Uploaded foot image"
                         width={600}
                         height={400}
                         className="w-full h-64 object-cover rounded-lg border"
@@ -227,7 +227,7 @@ export default function Dashboard() {
                         </div>
                       </div>
                       <p className="text-xs text-gray-500 mt-2 text-center">
-                        Insole placed on white paper, photographed from above
+                        Foot placed on white paper, photographed from above
                       </p>
                     </div>
                   </div>
@@ -240,14 +240,14 @@ export default function Dashboard() {
                         <div className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0 mt-0.5">
                           1
                         </div>
-                        <p className="text-gray-700">Place your insole on a white piece of paper (A4 or letter size)</p>
+                        <p className="text-gray-700">Place your foot on a white piece of paper (letter size)</p>
                       </div>
                       <div className="flex items-start space-x-3">
                         <div className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0 mt-0.5">
                           2
                         </div>
                         <p className="text-gray-700">
-                          Take the photo from directly above, ensuring the entire insole and paper edges are visible
+                          Take the photo from directly above, ensuring the entire foot and paper edges are visible
                         </p>
                       </div>
                       <div className="flex items-start space-x-3">
