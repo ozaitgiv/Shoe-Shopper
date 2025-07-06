@@ -60,4 +60,5 @@ build/
 ### Optional: OS-level trash
 .Trashes
 .Spotlight-V100
+.env
 
