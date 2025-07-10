@@ -18,18 +18,17 @@ class FootImageUploadView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-'''
-    --------------Missing Components As Reviewed----------
 
-    User Authentication
+#    --------------Missing Components As Reviewed----------
 
-    CV Integration
+#    User Authentication
 
-    Foot Measurement Storage - DB Error
+#    CV Integration
 
-    Shoe recommendation
+#    Foot Measurement Storage - DB Error
 
-    User Portal - DB Error
+#    Shoe recommendation
+
+#    User Portal - DB Error
 
 
-'''
