@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.contrib.auth import get_user_model
 from django.contrib.auth.models import User
 
 from .models import FootImage, Brand, Shoe, ShoeMeasurement, FootMeasurement, Recommendation
@@ -10,6 +11,9 @@ class FootImageSerializer(serializers.ModelSerializer):
         fields = ['id', 'image', 'uploaded_at']
 
 '''
+
+User = get_user_model()
+
 # Added Serializations to New attributes ----- SECURITY WARNING
 
 class UserSerializer(serializers.ModelSerializer):

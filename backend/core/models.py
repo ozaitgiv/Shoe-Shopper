@@ -72,11 +72,24 @@ class FootMeasurement(models.Model):
 
 # ----------------- Existing FootImage Function Retained----- Added Relationships
 
+# Added fucntionality to track processing status and/or erros during image analysis
+
 class FootImage(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)  # Added this line here
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     image = models.ImageField(upload_to='foot_images/')
     uploaded_at = models.DateTimeField(auto_now_add=True)
-    processed = models.BooleanField(default=False)  # Add this line
+    processed = models.BooleanField(default=False)
+    processing_status = models.CharField(
+        max_length=20,
+        default='pending',
+        choices=[
+            ('pending', 'Pending'),
+            ('processing', 'Processing'),
+            ('completed', 'Completed'),
+            ('failed', 'Failed')
+        ]
+    )
+    error_message = models.TextField(null=True, blank=True)
 
 class Recommendation(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)

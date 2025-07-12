@@ -82,15 +82,15 @@ WSGI_APPLICATION = 'shoe_shopper.wsgi.application'
 # Database 
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# Updated to use PostgreSQL with environment variables
+# Updated to use PostgreSQL
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('DB_NAME', 'shoe_recommendation_db'),
-        'USER': os.getenv('DB_USER', 'shoe_app_user'),
-        'PASSWORD': os.getenv('DB_PASSWORD', 'your_secure_password'),
-        'HOST': os.getenv('DB_HOST', 'localhost'),
-        'PORT': os.getenv('DB_PORT', '5432'),
+        'NAME': 'shoeshopper',         # Database Name
+        'USER': 'postgres',            # Default PostgreSQL user
+        'PASSWORD': 'your_password',   # Not Set 
+        'HOST': 'localhost',           
+        'PORT': '5432',                # Default port
     }
 }
 
