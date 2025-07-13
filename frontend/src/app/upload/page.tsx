@@ -73,21 +73,26 @@ const checkAuth = async () => {
 
 
 const handleLogout = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/logout/`, {
-        method: "POST",
-        credentials: "include",
-      })
-      if (response.ok) {
-        localStorage.removeItem("token")
-        router.push("/")
-      } else {
-        console.error("Logout failed")
-      }
-    } catch (error) {
-      console.error("Logout failed:", error)
+  const token = localStorage.getItem("token")
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/auth/logout/`, {
+      method: "POST",
+      headers: {
+        Authorization: `Token ${token}`,
+      },
+    })
+
+    if (response.ok) {
+      localStorage.removeItem("token")
+      router.push("/")
+    } else {
+      console.error("Logout failed")
     }
+  } catch (error) {
+    console.error("Logout failed:", error)
   }
+}
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault()
