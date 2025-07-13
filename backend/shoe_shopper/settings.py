@@ -18,9 +18,6 @@ import os  # OS Import Added
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
-
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-4m(4i4=h@0+c&#b)l5)$2$a$$xyyh!m)!5=om7=i$3clt89g-='
 
@@ -30,9 +27,11 @@ DEBUG = True
 ALLOWED_HOSTS = []
 
 
+
 # Application definition
 
 INSTALLED_APPS = [
+    'accounts.apps.AccountsConfig',                              # Added this Line for Django Readibility
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -80,23 +79,25 @@ WSGI_APPLICATION = 'shoe_shopper.wsgi.application'
 
 
 # Database 
-# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 # Updated to use PostgreSQL
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'shoeshopper',         # Database Name
+        'NAME': 'postgres',         # Database Name
         'USER': 'postgres',            # Default PostgreSQL user
-        'PASSWORD': 'your_password',   # Not Set 
+        'PASSWORD': 'admin22@',                # variable Entry -- Change to Your Password 
         'HOST': 'localhost',           
         'PORT': '5432',                # Default port
     }
 }
 
 
+AUTH_USER_MODEL = 'accounts.CustomUser'     # Added this line
+
+
 # Password validation
-# https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -131,8 +132,6 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
-# Default primary key field type
-# https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
@@ -157,9 +156,11 @@ REST_FRAMEWORK = {
     ],
 }
 
+
 # Load environment variables from .env file (optional)
 try:
     from dotenv import load_dotenv
     load_dotenv()
 except ImportError:
     pass
+

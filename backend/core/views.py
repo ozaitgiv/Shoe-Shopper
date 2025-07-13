@@ -33,6 +33,9 @@ from rest_framework import status
 from .models import FootImage, FootMeasurement
 from .serializers import FootImageSerializer, FootMeasurementSerializer
 
+def upload_form_view(request):
+    return render(request, 'upload_form.html')
+
 class FootImageUploadView(APIView):
     def post(self, request):
         serializer = FootImageSerializer(data=request.data)
@@ -82,17 +85,5 @@ class FootImageUploadView(APIView):
             foot_image.error_message = str(e)
             foot_image.save()
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-#    --------------Missing Components As Reviewed----------
-
-#    User Authentication
-
-#    CV Integration
-
-#    Foot Measurement Storage - DB Error
-
-#    Shoe recommendation
-
-#    User Portal - DB Error
 
 

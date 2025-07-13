@@ -22,9 +22,9 @@ from django.conf.urls.static import static
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/', include('core.urls')),  # Include your core app's URLs under /api/
+    path('api/', include('core.urls')),
+    path('api/auth/', include('accounts.urls')),  # New line Added here for --  Auth routes
 ]
 
-# Serve media files in development
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
