@@ -50,7 +50,8 @@ npm run dev # http://localhost:3000
 cd backend
 pip install Django djangorestframework django-cors-headers psycopg2-binary Pillow
 # or run requirements.txt
-python manage.py migrate
+python manage.py migrate accounts
+python manage.py migrate 
 python manage.py createsuperuser #Optional, for Admin Process
 python manage.py runserver
 ```
