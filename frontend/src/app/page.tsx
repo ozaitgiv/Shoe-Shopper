@@ -45,39 +45,41 @@ export default function LandingPage() {
     }
   }
 
-  const handleLoginSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-    setError("")
+const handleLoginSubmit = async (e: React.FormEvent) => {
+  e.preventDefault()
+  setIsLoading(true)
+  setError("")
 
-    try {
-      const csrfToken = await getCSRFToken()
+  try {
+    const csrfToken = await getCSRFToken()
 
-      const response = await fetch(`${API_BASE_URL}/api/auth/login/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRFToken": csrfToken,
-        },
-        credentials: "include",
-        body: JSON.stringify(loginForm),
-      })
+    const response = await fetch(`${API_BASE_URL}/api/auth/login/`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": csrfToken,
+      },
+      credentials: "include",
+      body: JSON.stringify(loginForm),
+    })
 
-      const data = await response.json()
+    const data = await response.json()
 
-      if (response.ok) {
-        // Login successful - redirect to upload page
-        router.push("/upload")
-      } else {
-        setError(data.error || "Login failed")
-      }
-    } catch (error) {
-      setError("Network error. Please try again.")
-    } finally {
-      setIsLoading(false)
+    if (response.ok) {
+      // ✅ Store token in localStorage
+      localStorage.setItem("token", data.token)
+
+      // ✅ Redirect to upload page
+      router.push("/upload")
+    } else {
+      setError(data.error || "Login failed")
     }
+  } catch (error) {
+    setError("Network error. Please try again.")
+  } finally {
+    setIsLoading(false)
   }
-
+}
   const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
