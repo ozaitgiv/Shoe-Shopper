@@ -123,18 +123,26 @@ export default function Dashboard() {
   }
 
   const validateFile = (file: File): string | null => {
-    // Check file type
-    if (!file.type.startsWith("image/")) {
-      return "Please upload an image file (JPG, PNG, HEIC)"
+    const allowedTypes = new Set<string>([
+    "image/jpeg", // .jpg and .jpeg
+    "image/png",  // .png
+    "image/bmp",  // .bmp
+    "image/webp", // .webp
+    "image/avif"  // .avif
+    ]);
+
+    // Guard against unknown or disallowed types
+    if (!allowedTypes.has(file.type)) {
+      return "Allowed formats: .jpg, .png, .bmp, .webp, .avif";
     }
 
-    // Check file size (10MB limit)
-    const maxSize = 10 * 1024 * 1024 // 10MB in bytes
+    // File size limit (10 MB)
+    const maxSize = 10 * 1024 * 1024; // 10 MB in bytes
     if (file.size > maxSize) {
-      return "File size must be less than 10MB"
+      return "File size must be less than 10 MB";
     }
 
-    return null
+    return null; // valid
   }
 
   const handleFile = async (file: File) => {
@@ -386,7 +394,7 @@ export default function Dashboard() {
                   >
                     <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
                     <p className="text-lg font-medium text-gray-900 mb-2">Drop your image here, or click to browse</p>
-                    <p className="text-sm text-gray-500 mb-4">Supports JPG, PNG, and HEIC files up to 10MB</p>
+                    <p className="text-sm text-gray-500 mb-4">Supports JPG, PNG, BMP, WebP, and AVIF files up to 10MB</p>
                     <input
                       type="file"
                       accept="image/*"
