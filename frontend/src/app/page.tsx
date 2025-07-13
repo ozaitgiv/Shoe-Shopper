@@ -220,38 +220,28 @@ export default function LandingPage() {
       {/* Benefits Section */}
       <section className="py-20 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            <div>
-              <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6">Why Choose Shoe Shopper?</h2>
-              <div className="space-y-6">
-                <div className="flex items-start space-x-4">
-                  <div className="bg-blue-100 w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                    <Zap className="h-4 w-4 text-blue-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900 mb-2">Lightning Fast</h3>
-                    <p className="text-gray-600">
-                      Get accurate measurements in seconds with our advanced AI technology.
-                    </p>
-                  </div>
+          <div className="text-center max-w-2xl mx-auto">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-12">Why Choose Shoe Shopper?</h2>
+            <div className="space-y-8">
+              <div className="flex items-start space-x-4">
+                <div className="bg-blue-100 w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                  <Zap className="h-4 w-4 text-blue-600" />
                 </div>
-                <div className="flex items-start space-x-4">
-                  <div className="bg-green-100 w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                    <Shield className="h-4 w-4 text-green-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900 mb-2">Highly Accurate</h3>
-                    <p className="text-gray-600">
-                      Our computer vision system provides precise measurements for the best fit.
-                    </p>
-                  </div>
+                <div className="text-left">
+                  <h3 className="font-semibold text-gray-900 mb-2">Lightning Fast</h3>
+                  <p className="text-gray-600">Get accurate measurements in seconds with our advanced AI technology.</p>
                 </div>
               </div>
-            </div>
-            <div className="bg-gray-200 rounded-lg h-96 flex items-center justify-center">
-              <div className="text-center text-gray-500">
-                <Camera className="h-16 w-16 mx-auto mb-4" />
-                <p>Product demo image will go here</p>
+              <div className="flex items-start space-x-4">
+                <div className="bg-green-100 w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                  <Shield className="h-4 w-4 text-green-600" />
+                </div>
+                <div className="text-left">
+                  <h3 className="font-semibold text-gray-900 mb-2">Highly Accurate</h3>
+                  <p className="text-gray-600">
+                    Our computer vision system provides precise measurements for the best fit.
+                  </p>
+                </div>
               </div>
             </div>
           </div>
