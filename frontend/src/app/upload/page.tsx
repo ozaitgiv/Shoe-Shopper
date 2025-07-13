@@ -43,50 +43,43 @@ export default function Dashboard() {
     checkAuth()
   }, [])
 
-  const checkAuth = async () => {
-    // TEMPORARY: Bypass authentication for testing
-    // Remove this when the Django backend is ready
-    setUser({
-      id: 1,
-      username: "testuser",
-      first_name: "Test",
-      last_name: "User",
-      email: "test@example.com",
-    })
-    setIsLoading(false)
-    return
-
-    // Original auth code below (commented out for now)
-    /*
+const checkAuth = async () => {
+    const token = localStorage.getItem("token")
+    if (!token) {
+      router.push("/")
+      return
+    }
     try {
       const response = await fetch(`${API_BASE_URL}/api/auth/user/`, {
-        credentials: "include",
+        headers: {
+          Authorization: `Token ${token}`,
+        },
       })
-
       if (response.ok) {
         const userData = await response.json()
         setUser(userData)
       } else {
-        // Not authenticated, redirect to landing page
+        localStorage.removeItem("token")
         router.push("/")
       }
     } catch (error) {
       console.error("Auth check failed:", error)
+      localStorage.removeItem("token")
       router.push("/")
     } finally {
       setIsLoading(false)
     }
-    */
   }
 
-  const handleLogout = async () => {
+
+const handleLogout = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/auth/logout/`, {
         method: "POST",
         credentials: "include",
       })
-
       if (response.ok) {
+        localStorage.removeItem("token")
         router.push("/")
       } else {
         console.error("Logout failed")
@@ -99,94 +92,60 @@ export default function Dashboard() {
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true)
-    } else if (e.type === "dragleave") {
-      setDragActive(false)
-    }
+    setDragActive(e.type === "dragenter" || e.type === "dragover")
   }
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
     setDragActive(false)
-
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFile(e.dataTransfer.files[0])
-    }
+    if (e.dataTransfer.files?.[0]) handleFile(e.dataTransfer.files[0])
   }
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      handleFile(e.target.files[0])
-    }
+    if (e.target.files?.[0]) handleFile(e.target.files[0])
   }
 
   const validateFile = (file: File): string | null => {
-    const allowedTypes = new Set<string>([
-    "image/jpeg", // .jpg and .jpeg
-    "image/png",  // .png
-    "image/bmp",  // .bmp
-    "image/webp", // .webp
-    "image/avif"  // .avif
-    ]);
-
-    // Guard against unknown or disallowed types
-    if (!allowedTypes.has(file.type)) {
-      return "Allowed formats: .jpg, .png, .bmp, .webp, .avif";
-    }
-
-    // File size limit (10 MB)
-    const maxSize = 10 * 1024 * 1024; // 10 MB in bytes
-    if (file.size > maxSize) {
-      return "File size must be less than 10 MB";
-    }
-
-    return null; // valid
+    if (!file.type.startsWith("image/")) return "Please upload an image file (JPG, PNG, HEIC)"
+    if (file.size > 10 * 1024 * 1024) return "File size must be less than 10MB"
+    return null
   }
 
   const handleFile = async (file: File) => {
-    // Reset previous states
     setError(null)
     setMeasurementResult(null)
     setUploadProgress(0)
 
-    // Validate file
     const validationError = validateFile(file)
     if (validationError) {
       setError(validationError)
       return
     }
 
-    // Show preview immediately
     const reader = new FileReader()
-    reader.onload = (e) => {
-      setUploadedImage(e.target?.result as string)
-    }
+    reader.onload = (e) => setUploadedImage(e.target?.result as string)
     reader.readAsDataURL(file)
 
-    // Start processing
     setIsProcessing(true)
 
     try {
-      // Get CSRF token
       const csrfResponse = await fetch(`${API_BASE_URL}/api/csrf/`, {
         credentials: "include",
       })
-
-      if (!csrfResponse.ok) {
-        throw new Error("Failed to get CSRF token")
-      }
-
+      if (!csrfResponse.ok) throw new Error("Failed to get CSRF token")
       const { csrfToken } = await csrfResponse.json()
 
-      // Upload image with progress tracking
       const formData = new FormData()
       formData.append("image", file)
+
+      const token = localStorage.getItem("token")
+      if (!token) throw new Error("User not authenticated")
 
       const uploadResponse = await fetch(`${API_BASE_URL}/api/measurements/upload/`, {
         method: "POST",
         headers: {
+          Authorization: `Token ${token}`,
           "X-CSRFToken": csrfToken,
         },
         credentials: "include",
@@ -199,10 +158,7 @@ export default function Dashboard() {
       }
 
       const uploadData = await uploadResponse.json()
-      const measurementId = uploadData.measurement_id
-
-      // Poll for results
-      await pollForResults(measurementId)
+      await pollForResults(uploadData.measurement_id)
     } catch (error) {
       console.error("Upload failed:", error)
       setError(error instanceof Error ? error.message : "Upload failed. Please try again.")
@@ -210,51 +166,54 @@ export default function Dashboard() {
     }
   }
 
-  const pollForResults = async (measurementId: number): Promise<void> => {
-    const maxAttempts = 60 // 60 seconds max (increased for production)
-    let attempts = 0
 
-    const poll = async (): Promise<void> => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/measurements/${measurementId}/`, {
-          credentials: "include",
-        })
 
-        if (!response.ok) {
-          throw new Error(`Failed to get measurement status: ${response.status}`)
-        }
+const pollForResults = async (measurementId: number): Promise<void> => {
+  const maxAttempts = 60
+  let attempts = 0
+  const token = localStorage.getItem("token")
 
-        const data = await response.json()
+  const poll = async (): Promise<void> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/measurements/${measurementId}/`, {
+        method: "GET",
+        headers: {
+          Authorization: `Token ${token}`,
+        },
+      })
 
-        if (data.status === "complete") {
-          // Use the backend data directly (no conversion needed)
-          setMeasurementResult(data)
-          setIsProcessing(false)
-          return
-        } else if (data.status === "error") {
-          setError(data.error_message || "Processing failed. Please try again.")
-          setIsProcessing(false)
-          return
-        }
+      if (!response.ok) {
+        throw new Error(`Failed to get measurement status: ${response.status}`)
+      }
 
-        // Still processing, continue polling
-        attempts++
-        if (attempts < maxAttempts) {
-          setTimeout(poll, 1000) // Poll every second
-        } else {
-          setError("Processing timeout. Please try again with a clearer image.")
-          setIsProcessing(false)
-        }
-      } catch (error) {
-        console.error("Polling error:", error)
-        setError("Failed to get processing results. Please try again.")
+      const data = await response.json()
+
+      if (data.status === "complete") {
+        setMeasurementResult(data)
+        setIsProcessing(false)
+        return
+      } else if (data.status === "error") {
+        setError(data.error_message || "Processing failed. Please try again.")
+        setIsProcessing(false)
+        return
+      }
+
+      attempts++
+      if (attempts < maxAttempts) {
+        setTimeout(poll, 1000)
+      } else {
+        setError("Processing timeout. Please try again with a clearer image.")
         setIsProcessing(false)
       }
+    } catch (error) {
+      console.error("Polling error:", error)
+      setError("Failed to get processing results. Please try again.")
+      setIsProcessing(false)
     }
-
-    await poll()
   }
 
+  await poll()
+}
   // Get user initials for avatar
   const getUserInitials = () => {
     if (!user) return "U"
