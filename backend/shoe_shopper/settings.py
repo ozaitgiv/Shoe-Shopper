@@ -93,8 +93,8 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'shoeshopper',
-        'USER': 'lucasmysliwczyk',
-        'PASSWORD': 'shopperz115a',
+        'USER': 'postgres',           
+        'PASSWORD': 'postgres',         
         'HOST': 'localhost',
         'PORT': '5432',
     }
@@ -127,6 +127,11 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # CORS settings
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
+
+# CSRF settings for secure API integration
+CSRF_COOKIE_HTTPONLY = False
+CSRF_COOKIE_SAMESITE = 'Lax'
+CSRF_TRUSTED_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000']
 
 # Optional S3 storage settings
 # INSTALLED_APPS += ['storages']
