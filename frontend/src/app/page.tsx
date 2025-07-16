@@ -45,41 +45,41 @@ export default function LandingPage() {
     }
   }
 
-const handleLoginSubmit = async (e: React.FormEvent) => {
-  e.preventDefault()
-  setIsLoading(true)
-  setError("")
+  const handleLoginSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsLoading(true)
+    setError("")
 
-  try {
-    const csrfToken = await getCSRFToken()
+    try {
+      const csrfToken = await getCSRFToken()
 
-    const response = await fetch(`${API_BASE_URL}/api/auth/login/`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRFToken": csrfToken,
-      },
-      credentials: "include",
-      body: JSON.stringify(loginForm),
-    })
+      const response = await fetch(`${API_BASE_URL}/api/auth/login/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": csrfToken,
+        },
+        credentials: "include",
+        body: JSON.stringify(loginForm),
+      })
 
-    const data = await response.json()
+      const data = await response.json()
 
-    if (response.ok) {
-      // ✅ Store token in localStorage
-      localStorage.setItem("token", data.token)
+      if (response.ok) {
+        // ✅ Store token in localStorage
+        localStorage.setItem("token", data.token)
 
-      // ✅ Redirect to upload page
-      router.push("/upload")
-    } else {
-      setError(data.error || "Login failed")
+        // ✅ Redirect to upload page
+        router.push("/upload")
+      } else {
+        setError(data.error || "Login failed")
+      }
+    } catch (error) {
+      setError("Network error. Please try again.")
+    } finally {
+      setIsLoading(false)
     }
-  } catch (error) {
-    setError("Network error. Please try again.")
-  } finally {
-    setIsLoading(false)
   }
-}
   const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
@@ -288,7 +288,7 @@ const handleLoginSubmit = async (e: React.FormEvent) => {
                   id="login-username"
                   value={loginForm.username}
                   onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
                   required
                   disabled={isLoading}
                 />
@@ -303,7 +303,7 @@ const handleLoginSubmit = async (e: React.FormEvent) => {
                     id="login-password"
                     value={loginForm.password}
                     onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-10"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-10 text-black"
                     required
                     disabled={isLoading}
                   />
@@ -372,7 +372,7 @@ const handleLoginSubmit = async (e: React.FormEvent) => {
                     id="first-name"
                     value={signupForm.first_name}
                     onChange={(e) => setSignupForm({ ...signupForm, first_name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
                     required
                     disabled={isLoading}
                   />
@@ -386,7 +386,7 @@ const handleLoginSubmit = async (e: React.FormEvent) => {
                     id="last-name"
                     value={signupForm.last_name}
                     onChange={(e) => setSignupForm({ ...signupForm, last_name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
                     required
                     disabled={isLoading}
                   />
@@ -401,7 +401,7 @@ const handleLoginSubmit = async (e: React.FormEvent) => {
                   id="signup-username"
                   value={signupForm.username}
                   onChange={(e) => setSignupForm({ ...signupForm, username: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
                   required
                   disabled={isLoading}
                 />
@@ -415,7 +415,7 @@ const handleLoginSubmit = async (e: React.FormEvent) => {
                   id="signup-email"
                   value={signupForm.email}
                   onChange={(e) => setSignupForm({ ...signupForm, email: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
                   required
                   disabled={isLoading}
                 />
@@ -430,7 +430,7 @@ const handleLoginSubmit = async (e: React.FormEvent) => {
                     id="signup-password"
                     value={signupForm.password}
                     onChange={(e) => setSignupForm({ ...signupForm, password: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-10"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-10 text-black"
                     required
                     disabled={isLoading}
                   />
@@ -454,7 +454,7 @@ const handleLoginSubmit = async (e: React.FormEvent) => {
                     id="confirm-password"
                     value={signupForm.confirm_password}
                     onChange={(e) => setSignupForm({ ...signupForm, confirm_password: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-10"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-10 text-black"
                     required
                     disabled={isLoading}
                   />
