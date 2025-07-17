@@ -6,5 +6,11 @@ class FootImageSerializer(serializers.ModelSerializer):
         model = FootImage
         fields = [
             'id', 'image', 'uploaded_at', 'status',
-            'length_inches', 'width_inches', 'error_message'
+            'length_inches', 'width_inches', 
+            'perimeter_inches', 'area_sq_inches',
+            'error_message'
+        ]
+        read_only_fields = [
+            'uploaded_at', 'status', 'length_inches', 'width_inches', 
+            'perimeter_inches', 'area_sq_inches', 'error_message'
         ]

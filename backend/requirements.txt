@@ -4,4 +4,6 @@ django-cors-headers
 pillow
 numpy
 opencv-python
-
+inference_sdk
+python-dotenv
+psycopg2-binary
