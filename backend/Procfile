@@ -1,0 +1,1 @@
+web: gunicorn shoe_shopper.wsgi:application --log-file -
