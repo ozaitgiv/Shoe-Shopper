@@ -2,12 +2,44 @@
 
 import type React from "react"
 import { useState, useEffect } from "react"
-import { Upload, Camera, Ruler, ShoppingBag, User, Settings, LogOut, ChevronDown, AlertCircle } from "lucide-react"
+import {
+  Upload,
+  Camera,
+  Ruler,
+  ShoppingBag,
+  User,
+  Settings,
+  LogOut,
+  ChevronDown,
+  AlertCircle,
+  Filter,
+} from "lucide-react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 
 // API configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+
+const GENDER_OPTIONS = ["Men", "Women", "Unisex"]
+const BRAND_OPTIONS = [
+  "Adidas",
+  "Allbirds",
+  "Altra",
+  "Converse",
+  "Danner",
+  "Doc Marten",
+  "Hoka",
+  "Muji",
+  "New Balance",
+  "Nike",
+  "On Cloud",
+  "Puma",
+  "Saucony",
+  "Solomon",
+  "Thursday",
+  "Vivobarefoot",
+]
+const FUNCTION_OPTIONS = ["Casual", "Hiking", "Work", "Running"]
 
 interface AppUser {
   id: number
@@ -38,12 +70,21 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null)
   const [uploadProgress, setUploadProgress] = useState(0)
 
+  const [filters, setFilters] = useState({
+    gender: [] as string[],
+    brand: [] as string[],
+    function: [] as string[],
+    maxPrice: 1000,
+  })
+
+  const [showFilters, setShowFilters] = useState(true)
+
   // Check authentication and get user info
   useEffect(() => {
     checkAuth()
   }, [])
 
-const checkAuth = async () => {
+  const checkAuth = async () => {
     const token = localStorage.getItem("token")
     if (!token) {
       router.push("/")
@@ -71,28 +112,27 @@ const checkAuth = async () => {
     }
   }
 
+  const handleLogout = async () => {
+    const token = localStorage.getItem("token")
 
-const handleLogout = async () => {
-  const token = localStorage.getItem("token")
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/logout/`, {
+        method: "POST",
+        headers: {
+          Authorization: `Token ${token}`,
+        },
+      })
 
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/auth/logout/`, {
-      method: "POST",
-      headers: {
-        Authorization: `Token ${token}`,
-      },
-    })
-
-    if (response.ok) {
-      localStorage.removeItem("token")
-      router.push("/")
-    } else {
-      console.error("Logout failed")
+      if (response.ok) {
+        localStorage.removeItem("token")
+        router.push("/")
+      } else {
+        console.error("Logout failed")
+      }
+    } catch (error) {
+      console.error("Logout failed:", error)
     }
-  } catch (error) {
-    console.error("Logout failed:", error)
   }
-}
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault()
@@ -171,54 +211,52 @@ const handleLogout = async () => {
     }
   }
 
+  const pollForResults = async (measurementId: number): Promise<void> => {
+    const maxAttempts = 60
+    let attempts = 0
+    const token = localStorage.getItem("token")
 
+    const poll = async (): Promise<void> => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/measurements/${measurementId}/`, {
+          method: "GET",
+          headers: {
+            Authorization: `Token ${token}`,
+          },
+        })
 
-const pollForResults = async (measurementId: number): Promise<void> => {
-  const maxAttempts = 60
-  let attempts = 0
-  const token = localStorage.getItem("token")
+        if (!response.ok) {
+          throw new Error(`Failed to get measurement status: ${response.status}`)
+        }
 
-  const poll = async (): Promise<void> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/measurements/${measurementId}/`, {
-        method: "GET",
-        headers: {
-          Authorization: `Token ${token}`,
-        },
-      })
+        const data = await response.json()
 
-      if (!response.ok) {
-        throw new Error(`Failed to get measurement status: ${response.status}`)
-      }
+        if (data.status === "complete") {
+          setMeasurementResult(data)
+          setIsProcessing(false)
+          return
+        } else if (data.status === "error") {
+          setError(data.error_message || "Processing failed. Please try again.")
+          setIsProcessing(false)
+          return
+        }
 
-      const data = await response.json()
-
-      if (data.status === "complete") {
-        setMeasurementResult(data)
+        attempts++
+        if (attempts < maxAttempts) {
+          setTimeout(poll, 1000)
+        } else {
+          setError("Processing timeout. Please try again with a clearer image.")
+          setIsProcessing(false)
+        }
+      } catch (error) {
+        console.error("Polling error:", error)
+        setError("Failed to get processing results. Please try again.")
         setIsProcessing(false)
-        return
-      } else if (data.status === "error") {
-        setError(data.error_message || "Processing failed. Please try again.")
-        setIsProcessing(false)
-        return
       }
-
-      attempts++
-      if (attempts < maxAttempts) {
-        setTimeout(poll, 1000)
-      } else {
-        setError("Processing timeout. Please try again with a clearer image.")
-        setIsProcessing(false)
-      }
-    } catch (error) {
-      console.error("Polling error:", error)
-      setError("Failed to get processing results. Please try again.")
-      setIsProcessing(false)
     }
-  }
 
-  await poll()
-}
+    await poll()
+  }
   // Get user initials for avatar
   const getUserInitials = () => {
     if (!user) return "U"
@@ -242,6 +280,26 @@ const pollForResults = async (measurementId: number): Promise<void> => {
     setMeasurementResult(null)
     setError(null)
     setUploadProgress(0)
+  }
+
+  const handleFilterChange = (category: "gender" | "brand" | "function", value: string) => {
+    setFilters((prev) => ({
+      ...prev,
+      [category]: prev[category].includes(value)
+        ? prev[category].filter((item) => item !== value)
+        : [...prev[category], value],
+    }))
+  }
+
+  const handleSelectAll = (category: "gender" | "brand" | "function", options: string[]) => {
+    setFilters((prev) => ({
+      ...prev,
+      [category]: prev[category].length === options.length ? [] : [...options],
+    }))
+  }
+
+  const isAllSelected = (category: "gender" | "brand" | "function", options: string[]) => {
+    return filters[category].length === options.length
   }
 
   if (isLoading) {
@@ -320,162 +378,297 @@ const pollForResults = async (measurementId: number): Promise<void> => {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 gap-8">
-          {/* Upload Section */}
-          <div className="">
-            <div className="bg-white rounded-lg shadow border border-gray-200">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+          {/* Filter Section */}
+          <div className="lg:col-span-1">
+            <div className="bg-white rounded-lg shadow border border-gray-200 sticky top-8">
               <div className="px-6 py-4 border-b border-gray-200">
-                <div className="flex items-center space-x-2">
-                  <Camera className="h-5 w-5" />
-                  <h3 className="text-lg font-semibold text-gray-900">Upload Foot Photo</h3>
-                </div>
-                <p className="text-sm text-gray-600 mt-1">
-                  Place your foot on a piece of paper and take a clear photo from directly above. Align your heel with
-                  the back edge of the paper.
-                </p>
-              </div>
-              <div className="p-6">
-                {/* Error Display */}
-                {error && (
-                  <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start space-x-3">
-                    <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-medium text-red-900">Upload Error</p>
-                      <p className="text-sm text-red-700">{error}</p>
-                    </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <Filter className="h-5 w-5" />
+                    <h3 className="text-lg font-semibold text-gray-900">Filters</h3>
                   </div>
-                )}
-
-                {!uploadedImage ? (
-                  <div
-                    className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                      dragActive ? "border-blue-500 bg-blue-50" : "border-gray-300 hover:border-gray-400"
-                    }`}
-                    onDragEnter={handleDrag}
-                    onDragLeave={handleDrag}
-                    onDragOver={handleDrag}
-                    onDrop={handleDrop}
+                  <button
+                    onClick={() => setShowFilters(!showFilters)}
+                    className="lg:hidden text-gray-500 hover:text-gray-700"
                   >
-                    <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                    <p className="text-lg font-medium text-gray-900 mb-2">Drop your image here, or click to browse</p>
-                    <p className="text-sm text-gray-500 mb-4">Supports JPG, PNG, BMP, WebP, and AVIF files up to 10MB</p>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleFileInput}
-                      className="hidden"
-                      id="file-upload"
+                    <ChevronDown
+                      className={`h-4 w-4 transform transition-transform ${showFilters ? "rotate-180" : ""}`}
                     />
-                    <label
-                      htmlFor="file-upload"
-                      className="inline-block bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors cursor-pointer"
-                    >
-                      Choose File
-                    </label>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="relative">
-                      <Image
-                        src={uploadedImage || "/placeholder.svg"}
-                        alt="Uploaded foot image"
-                        width={600}
-                        height={400}
-                        className="w-full h-64 object-cover rounded-lg border"
-                      />
-                      {isProcessing && (
-                        <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center rounded-lg">
-                          <div className="text-white text-center">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-2"></div>
-                            <p>Processing image...</p>
-                            <p className="text-sm mt-1">This may take up to 60 seconds</p>
-                          </div>
-                        </div>
-                      )}
+                  </button>
+                </div>
+              </div>
+
+              <div className={`${showFilters ? "block" : "hidden lg:block"}`}>
+                <div className="p-6 space-y-6">
+                  {/* Gender Filter */}
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-medium text-gray-900">Gender</h4>
+                      <button
+                        onClick={() => handleSelectAll("gender", GENDER_OPTIONS)}
+                        className="text-xs text-blue-600 hover:text-blue-700"
+                      >
+                        {isAllSelected("gender", GENDER_OPTIONS) ? "Deselect All" : "Select All"}
+                      </button>
                     </div>
-
-                    {!isProcessing && measurementResult && measurementResult.status === "complete" && (
-                      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                        <div className="flex items-center space-x-2 mb-3">
-                          <Ruler className="h-5 w-5 text-green-600" />
-                          <h3 className="font-medium text-green-900">Measurements Complete</h3>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                          <div>
-                            <span className="text-gray-600">Length:</span>
-                            <span className="ml-2 font-medium text-green-900">{measurementResult.length_inches}"</span>
-                          </div>
-                          <div>
-                            <span className="text-gray-600">Width:</span>
-                            <span className="ml-2 font-medium text-green-900">{measurementResult.width_inches}"</span>
-                          </div>
-                        </div>
-                        <button className="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors">
-                          View Shoe Recommendations
-                        </button>
-                      </div>
-                    )}
-
-                    <button
-                      onClick={resetUpload}
-                      className="w-full border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-md font-medium transition-colors"
-                    >
-                      Upload Another Photo
-                    </button>
+                    <div className="space-y-2">
+                      {GENDER_OPTIONS.map((option) => (
+                        <label key={option} className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={filters.gender.includes(option)}
+                            onChange={() => handleFilterChange("gender", option)}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="ml-2 text-sm text-gray-700">{option}</span>
+                        </label>
+                      ))}
+                    </div>
                   </div>
-                )}
+
+                  {/* Brand Filter */}
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-medium text-gray-900">Brand</h4>
+                      <button
+                        onClick={() => handleSelectAll("brand", BRAND_OPTIONS)}
+                        className="text-xs text-blue-600 hover:text-blue-700"
+                      >
+                        {isAllSelected("brand", BRAND_OPTIONS) ? "Deselect All" : "Select All"}
+                      </button>
+                    </div>
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {BRAND_OPTIONS.map((option) => (
+                        <label key={option} className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={filters.brand.includes(option)}
+                            onChange={() => handleFilterChange("brand", option)}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="ml-2 text-sm text-gray-700">{option}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Function Filter */}
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-medium text-gray-900">Function</h4>
+                      <button
+                        onClick={() => handleSelectAll("function", FUNCTION_OPTIONS)}
+                        className="text-xs text-blue-600 hover:text-blue-700"
+                      >
+                        {isAllSelected("function", FUNCTION_OPTIONS) ? "Deselect All" : "Select All"}
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      {FUNCTION_OPTIONS.map((option) => (
+                        <label key={option} className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={filters.function.includes(option)}
+                            onChange={() => handleFilterChange("function", option)}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="ml-2 text-sm text-gray-700">{option}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Max Price Filter */}
+                  <div>
+                    <h4 className="font-medium text-gray-900 mb-3">Max Price</h4>
+                    <div className="space-y-3">
+                      <input
+                        type="range"
+                        min="0"
+                        max="1000"
+                        step="25"
+                        value={filters.maxPrice}
+                        onChange={(e) => setFilters((prev) => ({ ...prev, maxPrice: Number.parseInt(e.target.value) }))}
+                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                      />
+                      <div className="flex justify-between text-sm text-gray-500">
+                        <span>$0</span>
+                        <span className="font-medium text-gray-900">${filters.maxPrice}</span>
+                        <span>$1000+</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Clear Filters */}
+                  <button
+                    onClick={() => setFilters({ gender: [], brand: [], function: [], maxPrice: 1000 })}
+                    className="w-full text-sm text-gray-600 hover:text-gray-800 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                  >
+                    Clear All Filters
+                  </button>
+                </div>
               </div>
             </div>
+          </div>
 
-            {/* Instructions */}
-            <div className="bg-white rounded-lg shadow border border-gray-200 mt-6">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">Photo Guidelines</h3>
-                <p className="text-sm text-gray-600 mt-1">Follow these steps for accurate measurements</p>
-              </div>
-              <div className="p-6">
-                <div className="grid md:grid-cols-2 gap-6">
-                  {/* Example Image */}
-                  <div>
-                    <h4 className="font-medium mb-3 text-gray-900">Example Photo</h4>
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 bg-gray-50">
-                      <div className="w-full h-32 bg-gray-200 rounded border flex items-center justify-center">
-                        <div className="text-center text-gray-500">
-                          <Camera className="h-8 w-8 mx-auto mb-2" />
-                          <p className="text-sm">Example image will go here</p>
-                        </div>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-2 text-center">
-                        Foot placed on white paper, photographed from above
-                      </p>
-                    </div>
+          {/* Upload Section */}
+          <div className="lg:col-span-3">
+            <div className="">
+              <div className="bg-white rounded-lg shadow border border-gray-200">
+                <div className="px-6 py-4 border-b border-gray-200">
+                  <div className="flex items-center space-x-2">
+                    <Camera className="h-5 w-5" />
+                    <h3 className="text-lg font-semibold text-gray-900">Upload Foot Photo</h3>
                   </div>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Place your foot on a piece of paper and take a clear photo from directly above. Align your heel with
+                    the back edge of the paper.
+                  </p>
+                </div>
+                <div className="p-6">
+                  {/* Error Display */}
+                  {error && (
+                    <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start space-x-3">
+                      <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium text-red-900">Upload Error</p>
+                        <p className="text-sm text-red-700">{error}</p>
+                      </div>
+                    </div>
+                  )}
 
-                  {/* Instructions */}
-                  <div>
-                    <h4 className="font-medium mb-3 text-gray-900">Steps to Follow</h4>
-                    <div className="space-y-3 text-sm">
-                      <div className="flex items-start space-x-3">
-                        <div className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0 mt-0.5">
-                          1
-                        </div>
-                        <p className="text-gray-700">Place your foot on a white piece of paper (letter size)</p>
+                  {!uploadedImage ? (
+                    <div
+                      className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                        dragActive ? "border-blue-500 bg-blue-50" : "border-gray-300 hover:border-gray-400"
+                      }`}
+                      onDragEnter={handleDrag}
+                      onDragLeave={handleDrag}
+                      onDragOver={handleDrag}
+                      onDrop={handleDrop}
+                    >
+                      <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                      <p className="text-lg font-medium text-gray-900 mb-2">Drop your image here, or click to browse</p>
+                      <p className="text-sm text-gray-500 mb-4">
+                        Supports JPG, PNG, BMP, WebP, and AVIF files up to 10MB
+                      </p>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileInput}
+                        className="hidden"
+                        id="file-upload"
+                      />
+                      <label
+                        htmlFor="file-upload"
+                        className="inline-block bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors cursor-pointer"
+                      >
+                        Choose File
+                      </label>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="relative">
+                        <Image
+                          src={uploadedImage || "/placeholder.svg"}
+                          alt="Uploaded foot image"
+                          width={600}
+                          height={400}
+                          className="w-full h-64 object-contain rounded-lg border bg-gray-50"
+                        />
+                        {isProcessing && (
+                          <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center rounded-lg">
+                            <div className="text-white text-center">
+                              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-2"></div>
+                              <p>Processing image...</p>
+                              <p className="text-sm mt-1">This may take up to 60 seconds</p>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                      <div className="flex items-start space-x-3">
-                        <div className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0 mt-0.5">
-                          2
+
+                      {!isProcessing && measurementResult && measurementResult.status === "complete" && (
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                          <div className="flex items-center space-x-2 mb-3">
+                            <Ruler className="h-5 w-5 text-green-600" />
+                            <h3 className="font-medium text-green-900">Measurements Complete</h3>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                              <span className="text-gray-600">Length:</span>
+                              <span className="ml-2 font-medium text-green-900">
+                                {measurementResult.length_inches}"
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-gray-600">Width:</span>
+                              <span className="ml-2 font-medium text-green-900">{measurementResult.width_inches}"</span>
+                            </div>
+                          </div>
+                          <button className="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors">
+                            View Shoe Recommendations
+                          </button>
                         </div>
-                        <p className="text-gray-700">
-                          Take the photo from directly above, ensuring the entire foot and paper edges are visible
-                        </p>
-                      </div>
-                      <div className="flex items-start space-x-3">
-                        <div className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0 mt-0.5">
-                          3
+                      )}
+
+                      <button
+                        onClick={resetUpload}
+                        className="w-full border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-md font-medium transition-colors"
+                      >
+                        Upload Another Photo
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Instructions */}
+              <div className="bg-white rounded-lg shadow border border-gray-200 mt-6">
+                <div className="px-6 py-4 border-b border-gray-200">
+                  <h3 className="text-lg font-semibold text-gray-900">Photo Guidelines</h3>
+                  <p className="text-sm text-gray-600 mt-1">Follow these steps for accurate measurements</p>
+                </div>
+                <div className="p-6">
+                  <div className="grid md:grid-cols-2 gap-6">
+                    {/* Example Image */}
+                    <div>
+                      <h4 className="font-medium mb-3 text-gray-900">Example Photo</h4>
+                      <Image
+                        src="/images/foot-example.jpg"
+                        alt="Example of foot placed on white paper for measurement"
+                        width={300}
+                        height={240}
+                        className="w-full rounded-lg shadow-sm"
+                      />
+                    </div>
+
+                    {/* Instructions */}
+                    <div>
+                      <h4 className="font-medium mb-3 text-gray-900">Steps to Follow</h4>
+                      <div className="space-y-3 text-sm">
+                        <div className="flex items-start space-x-3">
+                          <div className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0 mt-0.5">
+                            1
+                          </div>
+                          <p className="text-gray-700">Place your foot on a white piece of paper (letter size)</p>
                         </div>
-                        <p className="text-gray-700">
-                          Ensure good lighting and avoid shadows for accurate measurements
-                        </p>
+                        <div className="flex items-start space-x-3">
+                          <div className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0 mt-0.5">
+                            2
+                          </div>
+                          <p className="text-gray-700">
+                            Take the photo from directly above, ensuring the entire foot and paper edges are visible
+                          </p>
+                        </div>
+                        <div className="flex items-start space-x-3">
+                          <div className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0 mt-0.5">
+                            3
+                          </div>
+                          <p className="text-gray-700">
+                            Ensure good lighting and avoid shadows for accurate measurements
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </div>
