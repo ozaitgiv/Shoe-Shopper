@@ -386,7 +386,7 @@ export default function Dashboard() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
                     <Filter className="h-5 w-5" />
-                    <h3 className="text-lg font-semibold text-gray-900">Filters</h3>
+                    <h3 className="text-lg font-semibold text-gray-900">Your Preferences</h3>
                   </div>
                   <button
                     onClick={() => setShowFilters(!showFilters)}
@@ -397,6 +397,9 @@ export default function Dashboard() {
                     />
                   </button>
                 </div>
+                <p className="text-sm text-gray-600 mt-1">
+                  Set your preferences to get personalized shoe recommendations
+                </p>
               </div>
 
               <div className={`${showFilters ? "block" : "hidden lg:block"}`}>
@@ -579,10 +582,10 @@ export default function Dashboard() {
                         />
                         {isProcessing && (
                           <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center rounded-lg">
-                            <div className="text-white text-center">
+                            <div className="text-center">
                               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-2"></div>
-                              <p>Processing image...</p>
-                              <p className="text-sm mt-1">This may take up to 60 seconds</p>
+                              <p className="text-white font-medium">Processing image...</p>
+                              <p className="text-gray-200 text-sm mt-1">This may take up to 60 seconds</p>
                             </div>
                           </div>
                         )}
@@ -606,7 +609,14 @@ export default function Dashboard() {
                               <span className="ml-2 font-medium text-green-900">{measurementResult.width_inches}"</span>
                             </div>
                           </div>
-                          <button className="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors">
+                          <button
+                            onClick={() => {
+                              // In a real app, this would navigate with the preferences
+                              // For now, we'll just navigate to recommendations
+                              router.push("/recommendations")
+                            }}
+                            className="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
+                          >
                             View Shoe Recommendations
                           </button>
                         </div>
