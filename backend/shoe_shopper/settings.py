@@ -18,7 +18,8 @@ SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-4m(4i4=h@0+c&#b)l5)
 DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
 # Allow all for now; set proper domain in production
-ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', '*').split(',')
+#ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', '*').split(',')
+ALLOWED_HOSTS = ['shoe-shopper.app']
 
 # Application definition
 INSTALLED_APPS = [
