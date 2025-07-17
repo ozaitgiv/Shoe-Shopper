@@ -3,4 +3,7 @@ djangorestframework
 django-cors-headers
 pillow
 psycopg2-binary
+boto3
+django-storages
+
 
