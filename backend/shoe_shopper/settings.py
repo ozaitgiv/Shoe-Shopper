@@ -14,6 +14,8 @@ from pathlib import Path
 
 import os  # OS Import Added
 
+import dotenv 
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -25,6 +27,12 @@ SECRET_KEY = 'django-insecure-4m(4i4=h@0+c&#b)l5)$2$a$$xyyh!m)!5=om7=i$3clt89g-=
 DEBUG = True
 
 ALLOWED_HOSTS = []
+
+# Load Environment variables
+dotenv.read_dotenv()
+
+# Access Roboflow API Key
+ROBOFLOW_API_KEY = os.getenv("ROBOFLOW_API_KEY")
 
 
 
@@ -116,8 +124,6 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # Configuration for AWS S3 - Static and Media Files Storage
 
-AWS_ACCESS_KEY_ID = 'AWS_ACCESS_KEY_ID '
-AWS_SECRET_ACCESS_KEY = 'AWS_SECRET_ACCESS_KEY'
 AWS_STORAGE_BUCKET_NAME = 'shoe-shopper-images'
 AWS_S3_SIGNATURE_NAME = 's3v4',
 AWS_S3_REGION_NAME = 'us-east-1'
