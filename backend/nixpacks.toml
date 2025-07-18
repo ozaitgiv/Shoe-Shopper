@@ -1,0 +1,8 @@
+[phases.setup]
+nixPkgs = ['python39', 'gcc', 'pkg-config', 'libGL', 'glib', 'opencv4', 'ffmpeg', 'libsm', 'libxext']
+
+[phases.install]
+cmds = ['pip install -r requirements.txt']
+
+[start]
+cmd = 'python manage.py runserver 0.0.0.0:8000'
