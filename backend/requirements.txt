@@ -9,3 +9,4 @@ psycopg2-binary
 gunicorn
 whitenoise
 python-dotenv
+inference-sdk==0.51.4
