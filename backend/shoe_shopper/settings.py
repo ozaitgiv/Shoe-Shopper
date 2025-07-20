@@ -27,8 +27,7 @@ if IS_RAILWAY:
         'https://*.up.railway.app'
     ]
     CORS_ALLOWED_ORIGINS = [
-        'https://*.railway.app',
-        'https://*.up.railway.app'
+        'https://shoe-shopper-production.up.railway.app' #trying exact frontend url
     ]
 else:
     # Local development
