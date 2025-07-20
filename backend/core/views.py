@@ -1,3 +1,4 @@
+# backend/core/views.py
 import os
 from inference_sdk import InferenceHTTPClient
 from django.views.decorators.csrf import csrf_exempt
@@ -18,6 +19,9 @@ from django.shortcuts import get_object_or_404
 
 from .models import FootImage
 from .serializers import FootImageSerializer
+
+
+# === FOOT IMAGE PROCESSING FUNCTIONS ===
 
 def process_foot_image(image_path):
     """Process the foot image using Roboflow CV model"""
@@ -76,18 +80,143 @@ def parse_predictions(result_json):
                 elif class_id == 0:  # Foot
                     foot_dims = (width, height)
     except Exception as e:
-        print(f"Error parsing predictions: {e}")
+        pass  # Silently handle parsing errors
             
     return paper_dims, foot_dims
 
-# === Upload API ===
+
+# === ENHANCED INSOLE PROCESSING FUNCTIONS ===
+
+def calculate_hybrid_measurements(insole_points, paper_points):
+    """
+    Calculate measurements: bounding box L/W + real area/perimeter
+    """
+    import numpy as np
+    
+    try:
+        # Convert to numpy arrays
+        insole_pts = np.array([[p["x"], p["y"]] for p in insole_points])
+        paper_pts = np.array([[p["x"], p["y"]] for p in paper_points])
+        
+        # Calculate paper reference (8.5" width)
+        paper_width_pixels = np.max(paper_pts[:, 0]) - np.min(paper_pts[:, 0])
+        pixels_per_inch = paper_width_pixels / 8.5
+        
+        # SIMPLE: Bounding box length/width
+        length_pixels = np.max(insole_pts[:, 1]) - np.min(insole_pts[:, 1])
+        width_pixels = np.max(insole_pts[:, 0]) - np.min(insole_pts[:, 0])
+        
+        # ACCURATE: Real area using Shoelace formula
+        def polygon_area(points):
+            x, y = points[:, 0], points[:, 1]
+            return 0.5 * abs(sum(x[i]*y[i+1] - x[i+1]*y[i] for i in range(-1, len(x)-1)))
+        
+        # ACCURATE: Real perimeter
+        def polygon_perimeter(points):
+            distances = np.sqrt(np.sum((points - np.roll(points, -1, axis=0))**2, axis=1))
+            return np.sum(distances)
+        
+        # Calculate measurements
+        area_pixels = polygon_area(insole_pts)
+        perimeter_pixels = polygon_perimeter(insole_pts)
+        
+        # Convert to inches
+        return {
+            'length': round(length_pixels / pixels_per_inch, 2),
+            'width': round(width_pixels / pixels_per_inch, 2),
+            'perimeter': round(perimeter_pixels / pixels_per_inch, 2),
+            'area': round(area_pixels / (pixels_per_inch ** 2), 2)
+        }
+        
+    except Exception as e:
+        # Return None values if calculation fails
+        return {
+            'length': None,
+            'width': None, 
+            'perimeter': None,
+            'area': None,
+            'error': str(e)
+        }
+
+
+def process_insole_segmentation_data(result_json):
+    """
+    Process segmentation workflow results
+    Extracts polygon data from workflow format
+    """
+    try:
+        # Extract predictions from workflow format
+        predictions = result_json[0]["predictions"]["predictions"]
+        
+        # Find insole and paper data
+        insole_data = None
+        paper_data = None
+        
+        for pred in predictions:
+            if pred.get("class") == "Insole":
+                insole_data = pred
+            elif pred.get("class") == "Paper":
+                paper_data = pred
+        
+        if insole_data is None:
+            return None, None, "Insole not detected in image"
+        if paper_data is None:
+            return None, None, "Paper not detected in image"
+            
+        # Extract polygon points
+        insole_points = insole_data.get("points", [])
+        paper_points = paper_data.get("points", [])
+        
+        if not insole_points or not paper_points:
+            return None, None, "No polygon points found"
+            
+        # Calculate all measurements
+        measurements = calculate_hybrid_measurements(insole_points, paper_points)
+        
+        if measurements.get('error'):
+            return None, None, f"Calculation error: {measurements['error']}"
+            
+        return measurements, None, None
+        
+    except Exception as e:
+        return None, None, f"Processing error: {str(e)}"
+
+
+def process_insole_image_with_enhanced_measurements(image_path):
+    """
+    Process an insole image using Roboflow workflow with enhanced measurements
+    """
+    try:
+        client = InferenceHTTPClient(
+            api_url="https://serverless.roboflow.com",
+            api_key=os.environ.get("ROBOFLOW_API_KEY")
+        )
+
+        result = client.run_workflow(
+            workspace_name="armaanai",
+            workflow_id="insole-measuring",
+            images={"image": image_path},
+            use_cache=True
+        )
+
+        # Process the results
+        measurements, error_data, error_msg = process_insole_segmentation_data(result)
+        
+        if error_msg:
+            return None, None, None, None, error_msg
+        
+        return (measurements['length'], measurements['width'], 
+                measurements['perimeter'], measurements['area'], None)
+        
+    except Exception as e:
+        return None, None, None, None, f"Error processing insole image: {str(e)}"
+
+
+# === API ENDPOINTS ===
+
 @method_decorator(csrf_exempt, name='dispatch')
 class FootImageUploadView(APIView):
     def post(self, request, format=None):
-        print(" Upload endpoint hit")
-        print("Request FILES:", request.FILES)
-        print("Request DATA:", request.data)
-
         serializer = FootImageSerializer(data=request.data)
         if serializer.is_valid():
             instance = serializer.save()
@@ -114,11 +243,9 @@ class FootImageUploadView(APIView):
 
             return Response({ "measurement_id": instance.id }, status=status.HTTP_201_CREATED)
         
-        print(" Serializer errors:", serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-# === Detail API ===
 class FootImageDetailView(APIView):
     def get(self, request, pk, format=None):
         foot_image = get_object_or_404(FootImage, pk=pk)
@@ -140,13 +267,15 @@ class FootImageDetailView(APIView):
         return Response(response_data)
 
 
-# === CSRF Token ===
+# === CSRF TOKEN ===
+
 @ensure_csrf_cookie
 def get_csrf_token(request):
     return JsonResponse({ "csrfToken": request.META.get("CSRF_COOKIE", "") })
 
 
-# === Auth APIs ===
+# === AUTH APIs ===
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 @csrf_exempt

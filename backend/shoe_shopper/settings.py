@@ -9,6 +9,13 @@ import dj_database_url
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv(BASE_DIR / '.env')
+except ImportError:
+    pass
+
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-4m(4i4=h@0+c&#b)l5)$2$a$$xyyh!m)!5=om7=i$3clt89g-=')
 
@@ -27,7 +34,7 @@ if IS_RAILWAY:
         'https://*.up.railway.app'
     ]
     CORS_ALLOWED_ORIGINS = [
-        'https://shoe-shopper-production.up.railway.app' #trying exact frontend url
+        'https://shoe-shopper-production.up.railway.app'
     ]
 else:
     # Local development
@@ -54,7 +61,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',  # For static files
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -102,13 +109,6 @@ else:
             'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
-
-# Temporary debug - remove after testing
-if 'DATABASE_URL' in os.environ:
-    print("=== DATABASE DEBUG ===")
-    print("DATABASE_URL found:", bool(os.environ.get('DATABASE_URL')))
-    print("Database config:", DATABASES['default'])
-    print("=====================")
     
 # REST Framework configuration
 REST_FRAMEWORK = {
