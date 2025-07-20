@@ -3,7 +3,6 @@ import { useState, useEffect } from "react"
 import {
   ShoppingBag,
   User,
-  Settings,
   LogOut,
   ChevronDown,
   ExternalLink,
@@ -501,13 +500,12 @@ export default function RecommendationsPage() {
                     <p className="text-xs text-gray-500">{user?.email}</p>
                   </div>
                   <div className="py-1">
-                    <button className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                    <button
+                      onClick={() => router.push("/account")}
+                      className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    >
                       <User className="mr-2 h-4 w-4" />
-                      Profile
-                    </button>
-                    <button className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                      <Settings className="mr-2 h-4 w-4" />
-                      Settings
+                      Account
                     </button>
                     <hr className="my-1" />
                     <button
