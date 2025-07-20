@@ -89,8 +89,8 @@ WSGI_APPLICATION = 'shoe_shopper.wsgi.application'
 if 'DATABASE_URL' in os.environ:
     # Railway PostgreSQL (production)
     DATABASES = {
-        'default': dj_database_url.parse(
-            os.environ.get('DATABASE_URL'),
+        'default': dj_database_url.config(
+            default=os.environ.get('DATABASE_URL'),
             conn_max_age=600,
             conn_health_checks=True,
         )
@@ -104,6 +104,13 @@ else:
         }
     }
 
+# Temporary debug - remove after testing
+if 'DATABASE_URL' in os.environ:
+    print("=== DATABASE DEBUG ===")
+    print("DATABASE_URL found:", bool(os.environ.get('DATABASE_URL')))
+    print("Database config:", DATABASES['default'])
+    print("=====================")
+    
 # REST Framework configuration
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
