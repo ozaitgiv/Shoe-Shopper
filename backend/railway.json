@@ -5,7 +5,7 @@
     "buildCommand": "pip install -r requirements.txt"
   },
   "deploy": {
-    "startCommand": "echo 'PORT is:' $PORT && python manage.py migrate && python manage.py collectstatic --noinput && echo 'Starting gunicorn on 0.0.0.0:'$PORT && gunicorn shoe_shopper.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 1 --timeout 120 --access-logfile - --error-logfile -",
+    "startCommand": "python manage.py migrate && python manage.py collectstatic --noinput && echo 'Railway will auto-assign port' && gunicorn shoe_shopper.wsgi:application --bind 0.0.0.0:$PORT --workers 1 --timeout 120 --access-logfile - --error-logfile -",
     "restartPolicyType": "on_failure"
   }
 }
