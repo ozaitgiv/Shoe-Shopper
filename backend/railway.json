@@ -1,11 +1,11 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
-    "builder": "nixpacks", 
+    "builder": "nixpacks",
     "buildCommand": "pip install -r requirements.txt"
   },
   "deploy": {
-    "startCommand": "python manage.py migrate && python manage.py collectstatic --noinput && gunicorn shoe_shopper.wsgi:application --bind 0.0.0.0:$PORT",
+    "startCommand": "echo 'Environment check...' && env | grep -E '(DEBUG|SECRET_KEY|ROBOFLOW|DATABASE_URL)' && echo 'Running Django check...' && python manage.py check --deploy && echo 'Django check passed!' && python manage.py migrate && echo 'Migrations done!' && python manage.py collectstatic --noinput && echo 'Static files done!' && echo 'Testing imports...' && python -c 'import django; django.setup(); from core import views; print(\"Imports successful\")' && echo 'Starting with runserver for debugging...' && python manage.py runserver 0.0.0.0:$PORT",
     "restartPolicyType": "on_failure"
   }
 }
