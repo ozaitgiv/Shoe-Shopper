@@ -2,10 +2,10 @@
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
     "builder": "nixpacks",
-    "buildCommand": "pip install -r requirements.txt"
+    "buildCommand": "cd backend && pip install -r requirements.txt"
   },
   "deploy": {
-    "startCommand": "echo 'Step 1: Starting...' && python manage.py migrate && echo 'Step 2: Migrations done' && python manage.py collectstatic --noinput && echo 'Step 3: Static files done' && echo 'Step 4: Testing basic Django...' && python -c 'import os; print(\"PORT:\", os.environ.get(\"PORT\", \"NOT_SET\")); print(\"DEBUG:\", os.environ.get(\"DEBUG\", \"NOT_SET\"))' && echo 'Step 5: Starting runserver...' && python manage.py runserver 0.0.0.0:8000",
+    "startCommand": "cd backend && python manage.py migrate && python manage.py collectstatic --noinput && gunicorn shoe_shopper.wsgi:application --bind 0.0.0.0:$PORT",
     "restartPolicyType": "on_failure"
   }
 }
