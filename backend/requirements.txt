@@ -12,3 +12,5 @@ python-dotenv
 inference-sdk==0.51.4
 dj-database-url
 whitenoise>=6.6
+boto3>= 1.43.0
+django-storages>= 1.14.2

@@ -44,6 +44,7 @@ else:
 
 # Application definition
 INSTALLED_APPS = [
+    'storages',                                     # Insert this line
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -128,6 +129,16 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
+
+# AWS S3 Settings
+AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')          # Replace with your AWS Access Key
+AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')  # Replace with your AWS Secret Access Key
+AWS_STORAGE_BUCKET_NAME = os.getenv('shoe-shopper-images')
+AWS_S3_REGION_NAME = os.getenv('us-east-1')
+AWS_S3_FILE_OVERWRITE = False
+DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+STATICFILES_STORAGE = 'storages.backends.s3boto3.S3StaticStorage'
+AWS_DEFAULT_ACL = 'public-read'
 
 # Internationalization
 LANGUAGE_CODE = 'en-us'
