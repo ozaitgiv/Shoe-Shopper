@@ -34,11 +34,11 @@ if IS_RAILWAY:
         'https://*.up.railway.app'
     ]
     CORS_ALLOWED_ORIGINS = [
-        'https://shoe-shopper-production.up.railway.app'
+        'https://dynamic-commitment-production.up.railway.app/'
     ]
 else:
     # Local development
-    ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+    ALLOWED_HOSTS = ['localhost', '127.0.0.1' , 'handsome-enjoyment-development.up.railway.app']
     CSRF_TRUSTED_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000']
     CORS_ALLOW_ALL_ORIGINS = True
 
