@@ -23,22 +23,34 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-4m(4i4=h@0+c&#
 DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
 
 # Determine if we're on Railway
-IS_RAILWAY = 'RAILWAY_ENVIRONMENT' in os.environ
+IS_RAILWAY = 'RAILWAY_ENVIRONMENT' in os.environ or '.up.railway.app' in os.environ.get('RAILWAY_PUBLIC_DOMAIN', '')
 
-if IS_RAILWAY:
+# Get current Railway domains
+BACKEND_URL = 'handsome-enjoyment-development.up.railway.app'
+FRONTEND_URL = 'dynamic-commitment-production.up.railway.app'
+
+if IS_RAILWAY or BACKEND_URL in os.environ.get('RAILWAY_PUBLIC_DOMAIN', ''):
     # Production settings
     DEBUG = False
-    ALLOWED_HOSTS = ['.railway.app', '.up.railway.app']
+    ALLOWED_HOSTS = [
+        '.railway.app', 
+        '.up.railway.app',
+        BACKEND_URL,
+        FRONTEND_URL,
+    ]    
     CSRF_TRUSTED_ORIGINS = [
         'https://*.railway.app',
-        'https://*.up.railway.app'
+        'https://*.up.railway.app',
+        f'https://{BACKEND_URL}',
+        f'https://{FRONTEND_URL}',
     ]
     CORS_ALLOWED_ORIGINS = [
-        'https://dynamic-commitment-production.up.railway.app/'
+        f'https://{FRONTEND_URL}',  
     ]
+    CORS_ALLOW_CREDENTIALS = True
 else:
     # Local development
-    ALLOWED_HOSTS = ['localhost', '127.0.0.1' , 'handsome-enjoyment-development.up.railway.app']
+    ALLOWED_HOSTS = ['localhost', '127.0.0.1']
     CSRF_TRUSTED_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000']
     CORS_ALLOW_ALL_ORIGINS = True
 
@@ -153,3 +165,4 @@ CORS_ALLOW_CREDENTIALS = True
 # CSRF settings for secure API integration
 CSRF_COOKIE_HTTPONLY = False
 CSRF_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SECURE = not DEBUG  # Use secure cookies in production
