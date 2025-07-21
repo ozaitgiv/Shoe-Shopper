@@ -1,4 +1,3 @@
-# backend/core/models.py
 from django.db import models
 
 class FootImage(models.Model):
@@ -49,6 +48,14 @@ class Shoe(models.Model):
     price_usd = models.DecimalField(max_digits=8, decimal_places=2)
     product_url = models.URLField()
     is_active = models.BooleanField(default=True)
+    
+    # NEW: Shoe product image
+    shoe_image = models.ImageField(
+        upload_to='shoe_images/',
+        null=True,
+        blank=True,
+        help_text="Upload product image of the shoe"
+    )
     
     # Insole processing fields
     insole_image = models.ImageField(
