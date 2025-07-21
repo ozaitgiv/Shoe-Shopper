@@ -1,202 +1,96 @@
-
-"""
+# backend/core/models.py
 from django.db import models
-#from django.contrib.auth.models import User
-from django.conf import settings
 
-# Create your models here.
-
-'''
-# For image uploads
 class FootImage(models.Model):
     image = models.ImageField(upload_to='foot_images/')
     uploaded_at = models.DateTimeField(auto_now_add=True)
-
-'''
-
-
-class Brand(models.Model):
-    name = models.CharField(max_length=100, unique=True)
-    description = models.TextField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return self.name
-
-class ShoeCategory(models.Model):
-    name = models.CharField(max_length=100, unique=True)
-    description = models.TextField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return self.name
-
-class Shoe(models.Model):
-    brand = models.ForeignKey(Brand, on_delete=models.CASCADE)
-    category = models.ForeignKey(ShoeCategory, on_delete=models.CASCADE)
-    model_name = models.CharField(max_length=200)
-    style_code = models.CharField(max_length=50, blank=True)
-    price_range = models.CharField(max_length=20, blank=True)
-    availability_status = models.CharField(max_length=20, default='available')
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"{self.brand.name} {self.model_name}"
-
-class ShoeMeasurement(models.Model):
-    shoe = models.ForeignKey(Shoe, on_delete=models.CASCADE, related_name='measurements')
-    size_us = models.DecimalField(max_digits=3, decimal_places=1)
-    size_eu = models.IntegerField(null=True, blank=True)
-    length_mm = models.DecimalField(max_digits=5, decimal_places=2)
-    width_mm = models.DecimalField(max_digits=5, decimal_places=2)
-    arch_height_mm = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
-    measurement_date = models.DateField(auto_now_add=True)
-
-    def __str__(self):
-        return f"{self.shoe} - Size {self.size_us}"
-
-class UserProfile(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"{self.user.username}'s Profile"
-
-class FootMeasurement(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    foot_length_mm = models.DecimalField(max_digits=5, decimal_places=2)
-    foot_width_mm = models.DecimalField(max_digits=5, decimal_places=2)
-    arch_height_mm = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
-    measurement_confidence = models.DecimalField(max_digits=3, decimal_places=2, default=0.8)
-    measurement_date = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"{self.user.username} - {self.measurement_date.date()}"
-
-# ----------------- Existing FootImage Function Retained----- Added Relationships
-
-# Added fucntionality to track processing status and/or erros during image analysis
-
-class FootImage(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
-    image = models.ImageField(upload_to='foot_images/')
-    uploaded_at = models.DateTimeField(auto_now_add=True)
-    processed = models.BooleanField(default=False)
-    processing_status = models.CharField(
-        max_length=20,
-        default='pending',
-        choices=[
-            ('pending', 'Pending'),
-            ('processing', 'Processing'),
-            ('completed', 'Completed'),
-            ('failed', 'Failed')
-        ]
-    )
+    
+    STATUS_CHOICES = [
+        ('processing', 'Processing'),
+        ('complete', 'Complete'),
+        ('error', 'Error'),
+    ]
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='processing')
+    length_inches = models.FloatField(null=True, blank=True)
+    width_inches = models.FloatField(null=True, blank=True)
     error_message = models.TextField(null=True, blank=True)
-
-class Recommendation(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    foot_measurement = models.ForeignKey(FootMeasurement, on_delete=models.CASCADE)
-    shoe = models.ForeignKey(Shoe, on_delete=models.CASCADE)
-    recommended_size_us = models.DecimalField(max_digits=3, decimal_places=1)
-    similarity_score = models.DecimalField(max_digits=5, decimal_places=4)
-    confidence_score = models.DecimalField(max_digits=3, decimal_places=2)
-    recommendation_date = models.DateTimeField(auto_now_add=True)
-    user_feedback = models.IntegerField(null=True, blank=True, choices=[(i, i) for i in range(1, 6)])
     
     def __str__(self):
-        return f"{self.user.username} - {self.shoe} - Size {self.recommended_size_us}"
-"""
+        return f"FootImage {self.id}"
 
-from django.db import models
-from django.conf import settings  # ✅ Use this instead of importing User
-
-# Create your models here.
-
-class Brand(models.Model):
-    name = models.CharField(max_length=100, unique=True)
-    description = models.TextField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return self.name
-
-class ShoeCategory(models.Model):
-    name = models.CharField(max_length=100, unique=True)
-    description = models.TextField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return self.name
 
 class Shoe(models.Model):
-    brand = models.ForeignKey(Brand, on_delete=models.CASCADE)
-    category = models.ForeignKey(ShoeCategory, on_delete=models.CASCADE)
-    model_name = models.CharField(max_length=200)
-    style_code = models.CharField(max_length=50, blank=True)
-    price_range = models.CharField(max_length=20, blank=True)
-    availability_status = models.CharField(max_length=20, default='available')
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"{self.brand.name} {self.model_name}"
-
-class ShoeMeasurement(models.Model):
-    shoe = models.ForeignKey(Shoe, on_delete=models.CASCADE, related_name='measurements')
-    size_us = models.DecimalField(max_digits=3, decimal_places=1)
-    size_eu = models.IntegerField(null=True, blank=True)
-    length_mm = models.DecimalField(max_digits=5, decimal_places=2)
-    width_mm = models.DecimalField(max_digits=5, decimal_places=2)
-    arch_height_mm = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
-    measurement_date = models.DateField(auto_now_add=True)
-
-    def __str__(self):
-        return f"{self.shoe} - Size {self.size_us}"
-
-class UserProfile(models.Model):
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)  # ✅
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"{self.user.username}'s Profile"
-
-class FootMeasurement(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)  # ✅
-    foot_length_mm = models.DecimalField(max_digits=5, decimal_places=2)
-    foot_width_mm = models.DecimalField(max_digits=5, decimal_places=2)
-    arch_height_mm = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
-    measurement_confidence = models.DecimalField(max_digits=3, decimal_places=2, default=0.8)
-    measurement_date = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"{self.user.username} - {self.measurement_date.date()}"
-
-class FootImage(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True)  # ✅
-    image = models.ImageField(upload_to='foot_images/')
-    uploaded_at = models.DateTimeField(auto_now_add=True)
-    processed = models.BooleanField(default=False)
-    processing_status = models.CharField(
-        max_length=20,
-        default='pending',
-        choices=[
-            ('pending', 'Pending'),
-            ('processing', 'Processing'),
-            ('completed', 'Completed'),
-            ('failed', 'Failed')
-        ]
+    GENDER_CHOICES = [
+        ('M', 'Men'),
+        ('W', 'Women'),
+        ('U', 'Unisex'),
+    ]
+    
+    WIDTH_CHOICES = [
+        ('N', 'Narrow'),
+        ('D', 'Regular'),
+        ('W', 'Wide'),
+    ]
+    
+    FUNCTION_CHOICES = [
+        ('casual', 'Casual'),
+        ('hiking', 'Hiking'),
+        ('work', 'Work'),
+        ('running', 'Running'),
+    ]
+    
+    # Basic shoe information
+    company = models.CharField(max_length=100)
+    model = models.CharField(max_length=100)
+    gender = models.CharField(max_length=1, choices=GENDER_CHOICES)
+    us_size = models.DecimalField(max_digits=4, decimal_places=1)
+    width_category = models.CharField(max_length=1, choices=WIDTH_CHOICES)
+    function = models.CharField(max_length=20, choices=FUNCTION_CHOICES)
+    price_usd = models.DecimalField(max_digits=8, decimal_places=2)
+    product_url = models.URLField()
+    is_active = models.BooleanField(default=True)
+    
+    # Insole processing fields
+    insole_image = models.ImageField(
+        upload_to='insole_images/',
+        null=True,
+        blank=True,
+        help_text="Upload insole photo to automatically calculate measurements"
     )
-    error_message = models.TextField(null=True, blank=True)
-
-class Recommendation(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)  # ✅
-    foot_measurement = models.ForeignKey(FootMeasurement, on_delete=models.CASCADE)
-    shoe = models.ForeignKey(Shoe, on_delete=models.CASCADE)
-    recommended_size_us = models.DecimalField(max_digits=3, decimal_places=1)
-    similarity_score = models.DecimalField(max_digits=5, decimal_places=4)
-    confidence_score = models.DecimalField(max_digits=3, decimal_places=2)
-    recommendation_date = models.DateTimeField(auto_now_add=True)
-    user_feedback = models.IntegerField(null=True, blank=True, choices=[(i, i) for i in range(1, 6)])
-
+    insole_length = models.FloatField(null=True, blank=True, help_text="Length in inches")
+    insole_width = models.FloatField(null=True, blank=True, help_text="Width in inches")
+    insole_perimeter = models.FloatField(null=True, blank=True, help_text="Perimeter in inches")
+    insole_area = models.FloatField(null=True, blank=True, help_text="Area in square inches")
+    
+    def save(self, *args, **kwargs):
+        """Override save to auto-process insole image when uploaded"""
+        # First, save the model to ensure the image file exists on disk
+        super().save(*args, **kwargs)
+        
+        # THEN check if we need to process the image
+        if self.insole_image and not self.insole_length:
+            try:
+                # Import here to avoid circular imports
+                from .views import process_insole_image_with_enhanced_measurements
+                
+                # Process the uploaded insole image (file now exists on disk)
+                length, width, perimeter, area, error_msg = process_insole_image_with_enhanced_measurements(
+                    self.insole_image.path
+                )
+                
+                if not error_msg:
+                    # Auto-populate the measurement fields
+                    self.insole_length = length
+                    self.insole_width = width
+                    self.insole_perimeter = perimeter
+                    self.insole_area = area
+                    
+                    # Save again with the measurements (without triggering infinite loop)
+                    super().save(*args, **kwargs)
+                    
+            except Exception as e:
+                # If processing fails, just continue without measurements
+                pass
+    
     def __str__(self):
-        return f"{self.user.username} - {self.shoe} - Size {self.recommended_size_us}"
+        return f"{self.company} {self.model} (US {self.us_size})"

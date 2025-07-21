@@ -1,8 +1,26 @@
 from django.urls import path
-from .views import FootImageUploadView, upload_form_view
+from rest_framework.authtoken.views import obtain_auth_token
+from .views import (
+    FootImageUploadView,
+    FootImageDetailView,
+    get_csrf_token,
+    signup,
+    logout_view,
+    user_info,
+)
 
 urlpatterns = [
-    path('upload/', FootImageUploadView.as_view(), name='image-upload'),
-    path('upload-form/', upload_form_view, name='upload-form'),  # for testing
+    # CSRF
+    path("csrf/", get_csrf_token, name="get-csrf-token"),
+
+    # Auth
+    path("auth/signup/", signup, name="signup"),
+    path("auth/login/", obtain_auth_token, name="login"),
+    path("auth/logout/", logout_view, name="logout"),
+    path("auth/user/", user_info, name="user-info"),
+
+    # Measurements
+    path("measurements/upload/", FootImageUploadView.as_view(), name="measurement-upload"),
+    path("measurements/<int:pk>/", FootImageDetailView.as_view(), name="measurement-detail"),
 ]
 
