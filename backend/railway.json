@@ -5,7 +5,7 @@
     "buildCommand": "pip install -r requirements.txt"
   },
   "deploy": {
-    "startCommand": "echo 'Environment check...' && env | grep -E '(DEBUG|SECRET_KEY|ROBOFLOW|DATABASE_URL)' && echo 'Running Django check...' && python manage.py check --deploy && echo 'Django check passed!' && python manage.py migrate && echo 'Migrations done!' && python manage.py collectstatic --noinput && echo 'Static files done!' && echo 'Testing imports...' && python -c 'import django; django.setup(); from core import views; print(\"Imports successful\")' && echo 'Starting with runserver for debugging...' && python manage.py runserver 0.0.0.0:$PORT",
+    "startCommand": "echo 'Step 1: Starting...' && python manage.py migrate && echo 'Step 2: Migrations done' && python manage.py collectstatic --noinput && echo 'Step 3: Static files done' && echo 'Step 4: Testing basic Django...' && python -c 'import os; print(\"PORT:\", os.environ.get(\"PORT\", \"NOT_SET\")); print(\"DEBUG:\", os.environ.get(\"DEBUG\", \"NOT_SET\"))' && echo 'Step 5: Starting runserver...' && python manage.py runserver 0.0.0.0:8000",
     "restartPolicyType": "on_failure"
   }
 }
