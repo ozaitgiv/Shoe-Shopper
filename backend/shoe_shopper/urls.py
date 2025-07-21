@@ -1,30 +1,34 @@
-"""
-URL configuration for shoe_shopper project.
-
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/5.2/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
-"""
-
-from django.contrib import admin
-from django.urls import path, include
-from django.conf import settings
-from django.conf.urls.static import static
+# backend/core/urls.py
+from django.urls import path
+from rest_framework.authtoken.views import obtain_auth_token
+from .views import (
+    FootImageUploadView,
+    FootImageDetailView,
+    get_csrf_token,
+    signup,
+    logout_view,
+    user_info,
+    shoe_list,
+    shoe_detail,
+    shoe_recommendations,
+)
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('api/', include('core.urls')),  # Include your core app's URLs under /api/
-]
+    # CSRF
+    path("csrf/", get_csrf_token, name="get-csrf-token"),
 
-# Serve media files in development
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    # Auth
+    path("auth/signup/", signup, name="signup"),
+    path("auth/login/", obtain_auth_token, name="login"),
+    path("auth/logout/", logout_view, name="logout"),
+    path("auth/user/", user_info, name="user-info"),
+
+    # Measurements
+    path("measurements/upload/", FootImageUploadView.as_view(), name="measurement-upload"),
+    path("measurements/<int:pk>/", FootImageDetailView.as_view(), name="measurement-detail"),
+    
+    # Shoes API
+    path("shoes/", shoe_list, name="shoe-list"),
+    path("shoes/<int:pk>/", shoe_detail, name="shoe-detail"),
+    path("shoes/recommendations/", shoe_recommendations, name="shoe-recommendations"),
+]

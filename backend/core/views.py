@@ -1,5 +1,3 @@
-# backend/core/views.py
-import os
 from inference_sdk import InferenceHTTPClient
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
@@ -17,8 +15,8 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 
-from .models import FootImage
-from .serializers import FootImageSerializer
+from .models import FootImage, Shoe
+from .serializers import FootImageSerializer, ShoeSerializer
 
 
 # === FOOT IMAGE PROCESSING FUNCTIONS ===
@@ -265,6 +263,88 @@ class FootImageDetailView(APIView):
             response_data["error_message"] = foot_image.error_message or "There was an error processing your image."
 
         return Response(response_data)
+
+
+# === SHOE API ENDPOINTS ===
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def shoe_list(request):
+    """Get list of all active shoes"""
+    shoes = Shoe.objects.filter(is_active=True)
+    
+    # Filter by parameters if provided
+    company = request.GET.get('company')
+    gender = request.GET.get('gender')
+    function = request.GET.get('function')
+    min_price = request.GET.get('min_price')
+    max_price = request.GET.get('max_price')
+    
+    if company:
+        shoes = shoes.filter(company__icontains=company)
+    if gender:
+        shoes = shoes.filter(gender=gender)
+    if function:
+        shoes = shoes.filter(function=function)
+    if min_price:
+        shoes = shoes.filter(price_usd__gte=min_price)
+    if max_price:
+        shoes = shoes.filter(price_usd__lte=max_price)
+    
+    serializer = ShoeSerializer(shoes, many=True, context={'request': request})
+    return Response(serializer.data)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def shoe_detail(request, pk):
+    """Get details of a specific shoe"""
+    try:
+        shoe = Shoe.objects.get(pk=pk, is_active=True)
+        serializer = ShoeSerializer(shoe, context={'request': request})
+        return Response(serializer.data)
+    except Shoe.DoesNotExist:
+        return Response({'error': 'Shoe not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def shoe_recommendations(request):
+    """Get shoe recommendations based on foot measurements"""
+    length = request.GET.get('length')
+    width = request.GET.get('width')
+    
+    if not length or not width:
+        return Response({'error': 'Length and width parameters required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        length = float(length)
+        width = float(width)
+    except ValueError:
+        return Response({'error': 'Invalid length or width values'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Find shoes with similar insole measurements (within tolerance)
+    tolerance = 0.5  # inches
+    
+    shoes = Shoe.objects.filter(
+        is_active=True,
+        insole_length__isnull=False,
+        insole_width__isnull=False,
+        insole_length__gte=length - tolerance,
+        insole_length__lte=length + tolerance,
+        insole_width__gte=width - tolerance,
+        insole_width__lte=width + tolerance
+    ).order_by('price_usd')
+    
+    serializer = ShoeSerializer(shoes, many=True, context={'request': request})
+    return Response({
+        'foot_measurements': {
+            'length': length,
+            'width': width
+        },
+        'recommendations': serializer.data,
+        'count': len(serializer.data)
+    })
 
 
 # === CSRF TOKEN ===
