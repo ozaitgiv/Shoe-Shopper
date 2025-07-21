@@ -1,34 +1,18 @@
-# backend/core/urls.py
-from django.urls import path
-from rest_framework.authtoken.views import obtain_auth_token
-from .views import (
-    FootImageUploadView,
-    FootImageDetailView,
-    get_csrf_token,
-    signup,
-    logout_view,
-    user_info,
-    shoe_list,
-    shoe_detail,
-    shoe_recommendations,
-)
+# backend/shoe_shopper/urls.py
+"""
+URL configuration for shoe_shopper project.
+"""
+
+from django.contrib import admin
+from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
 
 urlpatterns = [
-    # CSRF
-    path("csrf/", get_csrf_token, name="get-csrf-token"),
-
-    # Auth
-    path("auth/signup/", signup, name="signup"),
-    path("auth/login/", obtain_auth_token, name="login"),
-    path("auth/logout/", logout_view, name="logout"),
-    path("auth/user/", user_info, name="user-info"),
-
-    # Measurements
-    path("measurements/upload/", FootImageUploadView.as_view(), name="measurement-upload"),
-    path("measurements/<int:pk>/", FootImageDetailView.as_view(), name="measurement-detail"),
-    
-    # Shoes API
-    path("shoes/", shoe_list, name="shoe-list"),
-    path("shoes/<int:pk>/", shoe_detail, name="shoe-detail"),
-    path("shoes/recommendations/", shoe_recommendations, name="shoe-recommendations"),
+    path('admin/', admin.site.urls),
+    path('api/', include('core.urls')),  # Include your core app's URLs under /api/
 ]
+
+# Serve media files in development
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
