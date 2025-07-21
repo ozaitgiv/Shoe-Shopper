@@ -202,3 +202,5 @@ if IS_RENDER or IS_RAILWAY:
             },
         },
     }
+
+APPEND_SLASH = True

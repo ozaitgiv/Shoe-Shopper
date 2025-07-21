@@ -1,6 +1,8 @@
 from django.db import models
+from django.contrib.auth.models import User  #  built-in User model
 
 class FootImage(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='foot_images')  
     image = models.ImageField(upload_to='foot_images/')
     uploaded_at = models.DateTimeField(auto_now_add=True)
     
@@ -15,7 +17,7 @@ class FootImage(models.Model):
     error_message = models.TextField(null=True, blank=True)
     
     def __str__(self):
-        return f"FootImage {self.id}"
+        return f"FootImage {self.id} by {self.user.username}"
 
 
 class Shoe(models.Model):

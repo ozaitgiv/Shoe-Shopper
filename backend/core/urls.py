@@ -3,10 +3,12 @@ from rest_framework.authtoken.views import obtain_auth_token
 from .views import (
     FootImageUploadView,
     FootImageDetailView,
+    get_latest_measurement,  
     get_csrf_token,
     signup,
     logout_view,
     user_info,
+    delete_account,
 )
 
 urlpatterns = [
@@ -18,8 +20,10 @@ urlpatterns = [
     path("auth/login/", obtain_auth_token, name="login"),
     path("auth/logout/", logout_view, name="logout"),
     path("auth/user/", user_info, name="user-info"),
+    path("auth/account/", delete_account, name="delete-account"),
 
     # Measurements
     path("measurements/upload/", FootImageUploadView.as_view(), name="measurement-upload"),
     path("measurements/<int:pk>/", FootImageDetailView.as_view(), name="measurement-detail"),
+    path("measurements/latest/", get_latest_measurement, name="latest-measurement"),  
 ]
