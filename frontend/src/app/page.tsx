@@ -6,7 +6,8 @@ import { ShoppingBag, Ruler, Camera, Zap, Shield, Eye, EyeOff } from "lucide-rea
 import { useRouter } from "next/navigation"
 
 // API configuration
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://handsome-enjoyment-development.up.railway.app"
+// replaced local host : 8000 with backend url
 
 export default function LandingPage() {
   const router = useRouter()
