@@ -8,6 +8,7 @@ from .views import (
     signup,
     logout_view,
     user_info,
+    recommendations,
     delete_account,
 )
 
@@ -25,5 +26,6 @@ urlpatterns = [
     # Measurements
     path("measurements/upload/", FootImageUploadView.as_view(), name="measurement-upload"),
     path("measurements/<int:pk>/", FootImageDetailView.as_view(), name="measurement-detail"),
+    path("recommendations/", recommendations, name="recommendations"),
     path("measurements/latest/", get_latest_measurement, name="latest-measurement"),  
 ]

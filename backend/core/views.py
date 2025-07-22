@@ -17,10 +17,9 @@ from rest_framework.authtoken.views import obtain_auth_token
 from rest_framework.authtoken.models import Token
 
 
-
 # === FOOT IMAGE PROCESSING FUNCTIONS ===
-from .models import FootImage
-from .serializers import FootImageSerializer
+from .models import FootImage, Shoe
+from .serializers import FootImageSerializer, ShoeSerializer
 
 def process_foot_image(image_path):
     try:
@@ -67,6 +66,29 @@ def parse_predictions(result_json):
             
     return paper_dims, foot_dims
 
+def score_shoe(user_length, user_width, shoe_length, shoe_width):
+    length_diff = shoe_length - user_length
+    width_diff = shoe_width - user_width
+    if length_diff < 0 or width_diff < 0:
+        return 0  # Shoe is too small
+    score = 100 - (length_diff * 10 + width_diff * 10)
+    return max(score, 0)
+
+US_MENS_SIZE_TO_LENGTH = {
+    7: 9.625, 7.5: 9.75, 8: 9.9375, 8.5: 10.125, 9: 10.25, 9.5: 10.4375, 10: 10.5625, 10.5: 10.75, 11: 10.9375, 11.5: 11.125, 12: 11.25
+}
+WIDTH_CATEGORY_TO_WIDTH = {
+    'N': 3.4,  # Narrow
+    'D': 3.6,  # Regular
+    'W': 3.8,  # Wide
+}
+
+def get_shoe_dimensions(shoe):
+    length = US_MENS_SIZE_TO_LENGTH.get(float(shoe.us_size), 10.0)
+    width = WIDTH_CATEGORY_TO_WIDTH.get(shoe.width_category, 3.6)
+    return length, width
+
+# === Upload API ===
 
 # === ENHANCED INSOLE PROCESSING FUNCTIONS ===
 
@@ -196,7 +218,6 @@ def process_insole_image_with_enhanced_measurements(image_path):
 
 
 # === API ENDPOINTS ===
-
 @method_decorator(csrf_exempt, name='dispatch')
 class FootImageUploadView(APIView):
     permission_classes = [IsAuthenticated]
@@ -365,6 +386,28 @@ def logout_view(request):
     logout(request)
     return Response({"message": "Logged out successfully"}, status=status.HTTP_200_OK)
 
+
+@api_view(['GET'])
+def recommendations(request):
+    foot_image = FootImage.objects.filter(status='complete').order_by('-uploaded_at').first()
+    if not foot_image or foot_image.length_inches is None or foot_image.width_inches is None:
+        return Response({'error': 'No completed foot measurement found. Please upload and process a foot image first.'}, status=400)
+    user_length = foot_image.length_inches
+    user_width = foot_image.width_inches
+    shoes = Shoe.objects.filter(is_active=True)
+    scored_shoes = []
+    for shoe in shoes:
+        shoe_length, shoe_width = get_shoe_dimensions(shoe)
+        score = score_shoe(user_length, user_width, shoe_length, shoe_width)
+        scored_shoes.append((score, shoe))
+    scored_shoes.sort(reverse=True, key=lambda x: x[0])
+    result = []
+    for score, shoe in scored_shoes:
+        data = ShoeSerializer(shoe).data
+        data['fit_score'] = score
+        result.append(data)
+    return Response(result)
+  
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_latest_measurement(request):
