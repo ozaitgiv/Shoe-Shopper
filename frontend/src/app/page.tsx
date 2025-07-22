@@ -31,19 +31,34 @@ export default function LandingPage() {
     confirm_password: "",
   })
 
-  // Get CSRF token
-  const getCSRFToken = async () => {
+// Get CSRF token
+const getCSRFToken = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/csrf/`, {
+      credentials: "include",
+    })
+    
+    // Get response as text first
+    const text = await response.text()
+    console.log('CSRF response text:', text)
+    
     try {
-      const response = await fetch(`${API_BASE_URL}/api/csrf/`, {
-        credentials: "include",
-      })
-      const data = await response.json()
+      // Try to parse as JSON
+      const data = JSON.parse(text)
       return data.csrfToken
-    } catch (error) {
-      console.error("Error getting CSRF token:", error)
-      return null
+    } catch (parseError) {
+      // If JSON parsing fails, try to extract token manually
+      const match = text.match(/csrfToken"([^"]+)"/)
+      if (match) {
+        return match[1]
+      }
+      throw new Error('Could not extract CSRF token')
     }
+  } catch (error) {
+    console.error("Error getting CSRF token:", error)
+    return null
   }
+} 
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
