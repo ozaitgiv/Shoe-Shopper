@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: shoe-shopper-backend
+    runtime: python3
+    buildCommand: "pip install -r backend/requirements.txt"
+    startCommand: "cd backend && python manage.py migrate && python manage.py collectstatic --noinput && gunicorn shoe_shopper.wsgi:application --bind 0.0.0.0:$PORT"
+    plan: free
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: DEBUG
+        value: False
+      - key: DJANGO_SETTINGS_MODULE
+        value: shoe_shopper.settings
+      - key: RENDER
+        value: true
+databases:
+  - name: shoe-shopper-db
+    databaseName: shoe_shopper
+    user: shoe_shopper_user
+    plan: free
