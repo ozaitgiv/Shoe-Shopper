@@ -95,6 +95,7 @@ const getCSRFToken = async () => {
       setIsLoading(false)
     }
   }
+  
   const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
@@ -109,6 +110,7 @@ const getCSRFToken = async () => {
 
     try {
       const csrfToken = await getCSRFToken()
+      console.log('Got CSRF token:', csrfToken)
 
       const response = await fetch(`${API_BASE_URL}/api/auth/signup/`, {
         method: "POST",
@@ -126,19 +128,27 @@ const getCSRFToken = async () => {
         }),
       })
 
+      console.log('Signup response status:', response.status)
       const data = await response.json()
+      console.log('Signup response data:', data)
 
       if (response.ok) {
+        console.log('Signup successful!')
         // Store token from signup response
         if (data.token) {
           localStorage.setItem("token", data.token)
+          console.log('Token stored:', data.token)
+        } else {
+          console.log('No token in response')
         }
         // Redirect to upload page
         router.push("/upload")
       } else {
+        console.log('Signup failed:', data.error)
         setError(data.error || "Signup failed")
       }
     } catch (error) {
+      console.log('Signup error:', error)
       setError("Network error. Please try again.")
     } finally {
       setIsLoading(false)
