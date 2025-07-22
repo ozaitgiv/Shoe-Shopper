@@ -205,7 +205,6 @@ export default function RecommendationsPage() {
       // TODO: Replace mock data with actual API call
       // Expected endpoint: GET /api/measurements/latest/
       // Expected response: { length_inches: number, width_inches: number, created_at: string }
-      // If no measurements found, return 404 or empty response
 
       let measurements = null
       try {
@@ -237,45 +236,7 @@ export default function RecommendationsPage() {
       // BACKEND INTEGRATION POINT 2: Get Shoe Recommendations
       // TODO: Replace mock data with actual API call
       // Expected endpoint: POST /api/shoes/search/
-      // Expected request body:
-      /*
-      {
-        "measurements": {
-          "length_inches": 10.5,
-          "width_inches": 4.2
-        },
-        "preferences": {
-          "gender": ["Men", "Women"],
-          "brands": ["Nike", "Adidas"],
-          "functions": ["Running", "Casual"],
-          "max_price": 200
-        },
-        "limit": 20
-      }
-      */
-      // Expected response:
-      /*
-      {
-        "shoes": [
-          {
-            "id": 1,
-            "company": "Nike",
-            "model": "Air Max 270",
-            "gender": "M",
-            "us_size": 10.5,
-            "width_category": "D",
-            "function": "Running",
-            "price_usd": 150.00,
-            "product_url": "https://nike.com/...",
-            "is_active": true,
-            "fit_score": 95,
-            "image_url": "https://example.com/shoe-image.jpg" // Optional
-          }
-        ],
-        "total_count": 25,
-        "has_more": false
-      }
-      */
+      // Backend handles fit scoring and sorting
 
       let shoes: Shoe[] = []
 
@@ -301,6 +262,7 @@ export default function RecommendationsPage() {
               functions: [],
               max_price: 1000,
             },
+            sort_by: sortBy, // Pass sorting preference to backend
             limit: 20,
           }),
         })
@@ -308,40 +270,33 @@ export default function RecommendationsPage() {
         if (searchResponse.ok) {
           const searchData = await searchResponse.json()
           shoes = searchData.shoes || []
-        } else if (searchResponse.status === 404) {
-          // Fallback to all shoes endpoint if search not implemented
-          const allShoesResponse = await fetch(`${API_BASE_URL}/api/shoes/`, {
-            headers: {
-              Authorization: `Token ${token}`,
-            },
-          })
-
-          if (allShoesResponse.ok) {
-            shoes = await allShoesResponse.json()
-            
-            // Apply client-side fit scoring if measurements available
-            if (measurements) {
-              shoes = shoes.map((shoe) => ({
-                ...shoe,
-                fit_score: calculateFitScore(shoe, measurements),
-              }))
-            }
-          }
         } else {
           throw new Error(`Search failed: ${searchResponse.status}`)
         }
         */
 
         // MOCK DATA - Remove when backend is ready
-        shoes = MOCK_SHOES
+        shoes = [...MOCK_SHOES]
+
+        // Apply mock sorting for demo purposes
+        shoes.sort((a, b) => {
+          switch (sortBy) {
+            case "fit_score":
+              return (b.fit_score || 0) - (a.fit_score || 0)
+            case "price_low":
+              return a.price_usd - b.price_usd
+            case "price_high":
+              return b.price_usd - a.price_usd
+            default:
+              return 0
+          }
+        })
       } catch (searchError) {
         console.warn("Search endpoint error, using mock data:", searchError)
         // MOCK DATA - Remove when backend is ready
         shoes = MOCK_SHOES
       }
 
-      // Apply sorting
-      shoes = applySorting(shoes, sortBy)
       setShoes(shoes)
     } catch (error) {
       console.error("Failed to load recommendations:", error)
@@ -353,52 +308,6 @@ export default function RecommendationsPage() {
     } finally {
       setIsLoading(false)
     }
-  }
-
-  // BACKEND INTEGRATION POINT 3: Fit Score Calculation
-  // TODO: This should ideally be calculated on the backend
-  // The backend should return fit_score as part of the shoe data
-  // This client-side calculation is a fallback
-  const calculateFitScore = (shoe: any, measurements: any): number => {
-    if (!measurements || !shoe.us_size) return 0
-
-    // Simple fit scoring algorithm - backend should implement more sophisticated logic
-    const idealLength = measurements.length_inches
-    const idealWidth = measurements.width_inches
-
-    // Convert US size to approximate length (rough conversion)
-    const shoeLengthInches = shoe.us_size * 0.33 + 7.5
-
-    // Calculate length score (closer to ideal = higher score)
-    const lengthDiff = Math.abs(shoeLengthInches - idealLength)
-    const lengthScore = Math.max(0, 100 - lengthDiff * 20)
-
-    // Width score based on width category
-    let widthScore = 50 // Default for unknown width
-    if (shoe.width_category === "N" && idealWidth < 3.5) widthScore = 90
-    else if (shoe.width_category === "D" && idealWidth >= 3.5 && idealWidth <= 4.5) widthScore = 95
-    else if (shoe.width_category === "W" && idealWidth > 4.5) widthScore = 90
-    else if (shoe.width_category === "D") widthScore = 80
-
-    // Combined score
-    const fitScore = Math.round(lengthScore * 0.7 + widthScore * 0.3)
-    return Math.max(0, Math.min(100, fitScore))
-  }
-
-  // Helper function to apply sorting
-  const applySorting = (shoes: any[], sortBy: string): any[] => {
-    return [...shoes].sort((a, b) => {
-      switch (sortBy) {
-        case "fit_score":
-          return (b.fit_score || 0) - (a.fit_score || 0)
-        case "price_low":
-          return a.price_usd - b.price_usd
-        case "price_high":
-          return b.price_usd - a.price_usd
-        default:
-          return 0
-      }
-    })
   }
 
   const handleLogout = async () => {
