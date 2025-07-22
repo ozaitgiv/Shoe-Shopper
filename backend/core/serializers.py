@@ -20,7 +20,6 @@ class ShoeSerializer(serializers.ModelSerializer):
             'shoe_image', 'image_url', 'insole_length', 'insole_width', 
             'insole_perimeter', 'insole_area', 'is_active'
         ]
-<<<<<<< HEAD
     
     def get_image_url(self, obj):
         """Return the full URL for the shoe image"""
@@ -30,5 +29,3 @@ class ShoeSerializer(serializers.ModelSerializer):
                 return request.build_absolute_uri(obj.shoe_image.url)
             return obj.shoe_image.url
         return None
-=======
->>>>>>> upstream/development
