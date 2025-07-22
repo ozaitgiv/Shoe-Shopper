@@ -24,8 +24,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the backend code
 COPY . .
 
-# Create startup script
-RUN echo '#!/bin/sh\npython manage.py migrate\npython manage.py collectstatic --noinput\ngunicorn shoe_shopper.wsgi:application --bind 0.0.0.0:10000' > /app/start.sh
+# Create startup script with full paths
+RUN echo '#!/bin/sh\n/usr/local/bin/python manage.py migrate\n/usr/local/bin/python manage.py collectstatic --noinput\n/usr/local/bin/gunicorn shoe_shopper.wsgi:application --bind 0.0.0.0:10000' > /app/start.sh
 RUN chmod +x /app/start.sh
 
 # Default command
