@@ -593,10 +593,10 @@ export default function RecommendationsPage() {
                 {/* Mobile Filter Button */}
                 <button
                   onClick={() => setShowFilters(true)}
-                  className="sm:hidden flex items-center space-x-2 px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                  className="sm:hidden flex items-center space-x-2 px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors text-gray-900"
                 >
-                  <Filter className="h-4 w-4" />
-                  <span>Filters</span>
+                  <Filter className="h-4 w-4 text-gray-900" />
+                  <span className="text-gray-900">Filters</span>
                   {getActiveFiltersCount() > 0 && (
                     <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded-full">
                       {getActiveFiltersCount()}
@@ -609,10 +609,10 @@ export default function RecommendationsPage() {
                 {/* Desktop Filter Button */}
                 <button
                   onClick={() => setShowFilters(true)}
-                  className="hidden sm:flex items-center space-x-2 px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                  className="hidden sm:flex items-center space-x-2 px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors text-gray-900"
                 >
-                  <Filter className="h-4 w-4" />
-                  <span>Filters</span>
+                  <Filter className="h-4 w-4 text-gray-900" />
+                  <span className="text-gray-900">Filters</span>
                   {getActiveFiltersCount() > 0 && (
                     <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded-full">
                       {getActiveFiltersCount()}
@@ -790,8 +790,16 @@ export default function RecommendationsPage() {
 
       {/* Filter Modal */}
       {showFilters && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
-          <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Background overlay - made much more transparent */}
+          <div
+            className="absolute inset-0"
+            style={{ backgroundColor: "rgba(0, 0, 0, 0.3)" }}
+            onClick={() => setShowFilters(false)}
+          ></div>
+
+          {/* Modal content */}
+          <div className="relative bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-4 border-b border-gray-200">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-gray-900">Filter Shoes</h3>
@@ -869,9 +877,12 @@ export default function RecommendationsPage() {
                     onChange={(e) => handlePriceChange(Number.parseInt(e.target.value))}
                     className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
                   />
-                  <div className="flex justify-between text-sm text-gray-500">
+                  <div className="flex justify-between items-center text-sm text-gray-500">
                     <span>$0</span>
-                    <span className="font-medium text-gray-900">${preferences.maxPrice}</span>
+                    <div className="text-center">
+                      <span className="font-medium text-gray-900 text-base">${preferences.maxPrice}</span>
+                      <div className="text-xs text-gray-500">Current</div>
+                    </div>
                     <span>$1000+</span>
                   </div>
                 </div>
