@@ -6,7 +6,7 @@ import { ShoppingBag, Ruler, Camera, Zap, Shield, Eye, EyeOff } from "lucide-rea
 import { useRouter } from "next/navigation"
 
 // API configuration
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+const API_BASE_URL = "https://shoeshopper.onrender.com"
 
 export default function LandingPage() {
   const router = useRouter()

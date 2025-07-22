@@ -181,9 +181,20 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # CORS settings
 CORS_ALLOW_CREDENTIALS = True
 
-# CSRF settings for secure API integration
-CSRF_COOKIE_HTTPONLY = False
-CSRF_COOKIE_SAMESITE = 'Lax'
+# CSRF settings for secure API integration and cross-site requests
+if IS_RENDER or IS_RAILWAY:
+    # Production CSRF settings for cross-site requests
+    CSRF_COOKIE_SAMESITE = 'None'
+    CSRF_COOKIE_SECURE = True
+    CSRF_COOKIE_HTTPONLY = False
+    
+    # Session cookie settings for cross-site requests
+    SESSION_COOKIE_SAMESITE = 'None' 
+    SESSION_COOKIE_SECURE = True
+else:
+    # Local development CSRF settings
+    CSRF_COOKIE_HTTPONLY = False
+    CSRF_COOKIE_SAMESITE = 'Lax'
 
 # Logging configuration for production debugging
 if IS_RENDER or IS_RAILWAY:
@@ -202,5 +213,3 @@ if IS_RENDER or IS_RAILWAY:
             },
         },
     }
-
-APPEND_SLASH = True
