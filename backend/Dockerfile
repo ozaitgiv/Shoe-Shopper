@@ -1,6 +1,6 @@
-FROM python:3.12-slim
+FROM python:3.11-slim
 
-# Install system dependencies for OpenCV and inference_sdk
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     libgl1-mesa-glx \
     libglib2.0-0 \
@@ -15,21 +15,18 @@ RUN apt-get update && apt-get install -y \
     libgstreamer-plugins-base1.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-# Set environment variables
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONDONTWRITEBYTECODE=1
-
 WORKDIR /app
 
-# Copy and install Python dependencies
+# Copy requirements and install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application
+# Copy the backend code
 COPY . .
 
-# Expose the port
-EXPOSE 8000
+# Create startup script
+RUN echo '#!/bin/sh\npython manage.py migrate\npython manage.py collectstatic --noinput\ngunicorn shoe_shopper.wsgi:application --bind 0.0.0.0:10000' > /app/start.sh
+RUN chmod +x /app/start.sh
 
-# Run the application
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+# Default command
+CMD ["/app/start.sh"]
