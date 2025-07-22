@@ -22,8 +22,8 @@ class ShoeAdmin(admin.ModelAdmin):
             'fields': ('company', 'model', 'gender', 'us_size', 'width_category', 'function', 'price_usd', 'product_url', 'is_active')
         }),
         ('Product Image', {
-            'fields': ('shoe_image',),
-            'description': 'Upload a product image for this shoe model.'
+            'fields': ('shoe_image_url',),
+            'description': 'Enter URL to the shoe product image (e.g., from manufacturer website).'  # CHANGED: description
         }),
         ('Insole Measurements', {
             'fields': ('insole_image', 'insole_length', 'insole_width', 'insole_perimeter', 'insole_area'),
@@ -36,8 +36,13 @@ class ShoeAdmin(admin.ModelAdmin):
     
     def shoe_image_preview(self, obj):
         """Show a small preview of the shoe image in the admin list"""
-        if obj.shoe_image:
-            return format_html('<img src="{}" width="50" height="50" style="object-fit: cover; border-radius: 4px;" />', obj.shoe_image.url)
+        if obj.shoe_image_url: 
+            return format_html(
+                '<img src="{}" width="50" height="50" style="object-fit: cover; border-radius: 4px;" '
+                'onerror="this.style.display=\'none\'; this.nextElementSibling.style.display=\'inline\';" />'
+                '<span style="display: none; color: #999; font-size: 11px;">Invalid URL</span>',
+                obj.shoe_image_url 
+            )
         return "No Image"
     shoe_image_preview.short_description = 'Image'
     

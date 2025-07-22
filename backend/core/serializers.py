@@ -17,15 +17,10 @@ class ShoeSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'company', 'model', 'gender', 'us_size', 
             'width_category', 'function', 'price_usd', 'product_url',
-            'shoe_image', 'image_url', 'insole_length', 'insole_width', 
+            'shoe_image_url', 'image_url', 'insole_length', 'insole_width',
             'insole_perimeter', 'insole_area', 'is_active'
         ]
     
     def get_image_url(self, obj):
-        """Return the full URL for the shoe image"""
-        if obj.shoe_image:
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(obj.shoe_image.url)
-            return obj.shoe_image.url
-        return None
+        """Return the shoe image URL"""
+        return obj.shoe_image_url

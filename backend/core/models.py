@@ -1,5 +1,5 @@
 from django.db import models
-from django.contrib.auth.models import User  #  built-in User model
+from django.contrib.auth.models import User
 
 class FootImage(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='foot_images')  
@@ -51,15 +51,14 @@ class Shoe(models.Model):
     product_url = models.URLField()
     is_active = models.BooleanField(default=True)
     
-    # NEW: Shoe product image
-    shoe_image = models.ImageField(
-        upload_to='shoe_images/',
+    # Store shoe image as URL
+    shoe_image_url = models.URLField(
         null=True,
         blank=True,
-        help_text="Upload product image of the shoe"
+        help_text="URL to the shoe product image (e.g., from manufacturer's website or CDN)"
     )
     
-    # Insole processing fields
+    # Insole processing fields 
     insole_image = models.ImageField(
         upload_to='insole_images/',
         null=True,
