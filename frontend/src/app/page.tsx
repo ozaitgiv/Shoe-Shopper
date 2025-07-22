@@ -81,10 +81,10 @@ const getCSRFToken = async () => {
       const data = await response.json()
 
       if (response.ok) {
-        // ✅ Store token in localStorage
+        // Store token in localStorage
         localStorage.setItem("token", data.token)
 
-        // ✅ Redirect to upload page
+        // Redirect to upload page
         router.push("/upload")
       } else {
         setError(data.error || "Login failed")
@@ -129,7 +129,11 @@ const getCSRFToken = async () => {
       const data = await response.json()
 
       if (response.ok) {
-        // Signup successful - redirect to upload page
+        // Store token from signup response
+        if (data.token) {
+          localStorage.setItem("token", data.token)
+        }
+        // Redirect to upload page
         router.push("/upload")
       } else {
         setError(data.error || "Signup failed")
