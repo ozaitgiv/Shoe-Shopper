@@ -76,13 +76,14 @@ interface UserPreferences {
   maxPrice: number
 }
 
-// MOCK DATA - Remove this section when backend is ready
+// EXPANDED MOCK DATA for better filtering demonstration
 const MOCK_USER_MEASUREMENTS: UserMeasurements = {
   length_inches: 10.5,
   width_inches: 4.2,
 }
 
-const MOCK_SHOES: Shoe[] = [
+const ALL_MOCK_SHOES: Shoe[] = [
+  // Nike shoes
   {
     id: 1,
     company: "Nike",
@@ -99,6 +100,36 @@ const MOCK_SHOES: Shoe[] = [
   },
   {
     id: 2,
+    company: "Nike",
+    model: "Air Force 1",
+    gender: "U",
+    us_size: 10.5,
+    width_category: "D",
+    function: "Casual",
+    price_usd: 90.0,
+    product_url: "https://nike.com/air-force-1",
+    is_active: true,
+    fit_score: 88,
+    image_url: "/placeholder.svg?height=200&width=200&text=Nike+Air+Force+1",
+  },
+  {
+    id: 3,
+    company: "Nike",
+    model: "Pegasus 40",
+    gender: "W",
+    us_size: 10.5,
+    width_category: "D",
+    function: "Running",
+    price_usd: 130.0,
+    product_url: "https://nike.com/pegasus-40",
+    is_active: true,
+    fit_score: 91,
+    image_url: "/placeholder.svg?height=200&width=200&text=Nike+Pegasus+40",
+  },
+
+  // Adidas shoes
+  {
+    id: 4,
     company: "Adidas",
     model: "Ultraboost 22",
     gender: "M",
@@ -112,7 +143,23 @@ const MOCK_SHOES: Shoe[] = [
     image_url: "/placeholder.svg?height=200&width=200&text=Adidas+Ultraboost",
   },
   {
-    id: 3,
+    id: 5,
+    company: "Adidas",
+    model: "Stan Smith",
+    gender: "U",
+    us_size: 10.5,
+    width_category: "D",
+    function: "Casual",
+    price_usd: 80.0,
+    product_url: "https://adidas.com/stan-smith",
+    is_active: true,
+    fit_score: 85,
+    image_url: "/placeholder.svg?height=200&width=200&text=Adidas+Stan+Smith",
+  },
+
+  // New Balance shoes
+  {
+    id: 6,
     company: "New Balance",
     model: "Fresh Foam X 1080v12",
     gender: "M",
@@ -126,7 +173,23 @@ const MOCK_SHOES: Shoe[] = [
     image_url: "/placeholder.svg?height=200&width=200&text=New+Balance+1080",
   },
   {
-    id: 4,
+    id: 7,
+    company: "New Balance",
+    model: "990v5",
+    gender: "U",
+    us_size: 10.5,
+    width_category: "D",
+    function: "Casual",
+    price_usd: 185.0,
+    product_url: "https://newbalance.com/990v5",
+    is_active: true,
+    fit_score: 87,
+    image_url: "/placeholder.svg?height=200&width=200&text=New+Balance+990v5",
+  },
+
+  // Allbirds shoes
+  {
+    id: 8,
     company: "Allbirds",
     model: "Tree Runners",
     gender: "U",
@@ -140,7 +203,23 @@ const MOCK_SHOES: Shoe[] = [
     image_url: "/placeholder.svg?height=200&width=200&text=Allbirds+Tree+Runners",
   },
   {
-    id: 5,
+    id: 9,
+    company: "Allbirds",
+    model: "Tree Dashers",
+    gender: "M",
+    us_size: 10.5,
+    width_category: "D",
+    function: "Running",
+    price_usd: 125.0,
+    product_url: "https://allbirds.com/tree-dashers",
+    is_active: true,
+    fit_score: 84,
+    image_url: "/placeholder.svg?height=200&width=200&text=Allbirds+Tree+Dashers",
+  },
+
+  // Hoka shoes
+  {
+    id: 10,
     company: "Hoka",
     model: "Clifton 9",
     gender: "M",
@@ -154,7 +233,23 @@ const MOCK_SHOES: Shoe[] = [
     image_url: "/placeholder.svg?height=200&width=200&text=Hoka+Clifton+9",
   },
   {
-    id: 6,
+    id: 11,
+    company: "Hoka",
+    model: "Bondi 8",
+    gender: "W",
+    us_size: 10.5,
+    width_category: "D",
+    function: "Running",
+    price_usd: 165.0,
+    product_url: "https://hoka.com/bondi-8",
+    is_active: true,
+    fit_score: 83,
+    image_url: "/placeholder.svg?height=200&width=200&text=Hoka+Bondi+8",
+  },
+
+  // On Cloud shoes
+  {
+    id: 12,
     company: "On Cloud",
     model: "Cloudstratus 3",
     gender: "M",
@@ -167,6 +262,158 @@ const MOCK_SHOES: Shoe[] = [
     fit_score: 83,
     image_url: "/placeholder.svg?height=200&width=200&text=On+Cloud+Stratus",
   },
+  {
+    id: 13,
+    company: "On Cloud",
+    model: "Cloud 5",
+    gender: "U",
+    us_size: 10.5,
+    width_category: "D",
+    function: "Casual",
+    price_usd: 140.0,
+    product_url: "https://on-running.com/cloud-5",
+    is_active: true,
+    fit_score: 81,
+    image_url: "/placeholder.svg?height=200&width=200&text=On+Cloud+5",
+  },
+
+  // Converse shoes
+  {
+    id: 14,
+    company: "Converse",
+    model: "Chuck Taylor All Star",
+    gender: "U",
+    us_size: 10.5,
+    width_category: "D",
+    function: "Casual",
+    price_usd: 55.0,
+    product_url: "https://converse.com/chuck-Taylor",
+    is_active: true,
+    fit_score: 75,
+    image_url: "/placeholder.svg?height=200&width=200&text=Converse+Chuck+Taylor",
+  },
+
+  // Puma shoes
+  {
+    id: 15,
+    company: "Puma",
+    model: "Suede Classic",
+    gender: "U",
+    us_size: 10.5,
+    width_category: "D",
+    function: "Casual",
+    price_usd: 70.0,
+    product_url: "https://puma.com/suede-classic",
+    is_active: true,
+    fit_score: 78,
+    image_url: "/placeholder.svg?height=200&width=200&text=Puma+Suede+Classic",
+  },
+  {
+    id: 16,
+    company: "Puma",
+    model: "Velocity Nitro 3",
+    gender: "M",
+    us_size: 10.5,
+    width_category: "D",
+    function: "Running",
+    price_usd: 110.0,
+    product_url: "https://puma.com/velocity-nitro-3",
+    is_active: true,
+    fit_score: 82,
+    image_url: "/placeholder.svg?height=200&width=200&text=Puma+Velocity+Nitro",
+  },
+
+  // Saucony shoes
+  {
+    id: 17,
+    company: "Saucony",
+    model: "Kinvara 14",
+    gender: "M",
+    us_size: 10.5,
+    width_category: "D",
+    function: "Running",
+    price_usd: 110.0,
+    product_url: "https://saucony.com/kinvara-14",
+    is_active: true,
+    fit_score: 86,
+    image_url: "/placeholder.svg?height=200&width=200&text=Saucony+Kinvara+14",
+  },
+
+  // Danner shoes (Work/Hiking)
+  {
+    id: 18,
+    company: "Danner",
+    model: "Mountain 600",
+    gender: "M",
+    us_size: 10.5,
+    width_category: "D",
+    function: "Hiking",
+    price_usd: 320.0,
+    product_url: "https://danner.com/mountain-600",
+    is_active: true,
+    fit_score: 79,
+    image_url: "/placeholder.svg?height=200&width=200&text=Danner+Mountain+600",
+  },
+  {
+    id: 19,
+    company: "Danner",
+    model: "Bull Run",
+    gender: "M",
+    us_size: 10.5,
+    width_category: "D",
+    function: "Work",
+    price_usd: 280.0,
+    product_url: "https://danner.com/bull-run",
+    is_active: true,
+    fit_score: 77,
+    image_url: "/placeholder.svg?height=200&width=200&text=Danner+Bull+Run",
+  },
+
+  // Thursday shoes (Work)
+  {
+    id: 20,
+    company: "Thursday",
+    model: "Captain Boot",
+    gender: "M",
+    us_size: 10.5,
+    width_category: "D",
+    function: "Work",
+    price_usd: 199.0,
+    product_url: "https://thursdayboots.com/captain",
+    is_active: true,
+    fit_score: 74,
+    image_url: "/placeholder.svg?height=200&width=200&text=Thursday+Captain+Boot",
+  },
+
+  // Higher priced items for price filtering
+  {
+    id: 21,
+    company: "Altra",
+    model: "Lone Peak 7",
+    gender: "U",
+    us_size: 10.5,
+    width_category: "W",
+    function: "Hiking",
+    price_usd: 140.0,
+    product_url: "https://altra.com/lone-peak-7",
+    is_active: true,
+    fit_score: 88,
+    image_url: "/placeholder.svg?height=200&width=200&text=Altra+Lone+Peak+7",
+  },
+  {
+    id: 22,
+    company: "Solomon",
+    model: "Speedcross 5",
+    gender: "M",
+    us_size: 10.5,
+    width_category: "D",
+    function: "Hiking",
+    price_usd: 130.0,
+    product_url: "https://salomon.com/speedcross-5",
+    is_active: true,
+    fit_score: 80,
+    image_url: "/placeholder.svg?height=200&width=200&text=Solomon+Speedcross+5",
+  },
 ]
 
 export default function RecommendationsPage() {
@@ -174,7 +421,8 @@ export default function RecommendationsPage() {
   const [user, setUser] = useState<AppUser | null>(null)
   const [showDropdown, setShowDropdown] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
-  const [shoes, setShoes] = useState<Shoe[]>([])
+  const [allShoes, setAllShoes] = useState<Shoe[]>([]) // All shoes from "backend"
+  const [filteredShoes, setFilteredShoes] = useState<Shoe[]>([]) // Filtered and sorted shoes
   const [userMeasurements, setUserMeasurements] = useState<UserMeasurements | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState<"fit_score" | "price_low" | "price_high">("fit_score")
@@ -197,15 +445,14 @@ export default function RecommendationsPage() {
   useEffect(() => {
     if (user) {
       loadSavedPreferences()
+      loadAllShoes()
     }
   }, [user])
 
-  // Reload shoes when preferences or sorting changes
+  // Apply filters and sorting whenever preferences, sorting, or shoes change
   useEffect(() => {
-    if (user) {
-      loadShoes()
-    }
-  }, [user, preferences, sortBy])
+    applyFiltersAndSorting()
+  }, [allShoes, preferences, sortBy])
 
   const loadSavedPreferences = () => {
     try {
@@ -256,23 +503,17 @@ export default function RecommendationsPage() {
     }
   }
 
-  const loadShoes = async () => {
+  const loadAllShoes = async () => {
     setIsLoading(true)
     setError(null)
 
     try {
-      const token = localStorage.getItem("token")
-      if (!token) {
-        setError("Authentication required. Please log in again.")
-        router.push("/")
-        return
-      }
-
       // Get User Measurements
       let measurements = null
       try {
         // TODO: Uncomment when backend is ready
         /*
+        const token = localStorage.getItem("token")
         const measurementsResponse = await fetch(`${API_BASE_URL}/api/measurements/latest/`, {
           headers: {
             Authorization: `Token ${token}`,
@@ -296,94 +537,84 @@ export default function RecommendationsPage() {
         console.warn("Could not load user measurements:", error)
       }
 
-      // Get Shoe Recommendations with filters
-      let shoes: Shoe[] = []
-
+      // Load all shoes (simulating backend call)
       try {
-        // TODO: Uncomment when backend is ready
+        // TODO: Replace with actual backend call
         /*
-        const searchResponse = await fetch(`${API_BASE_URL}/api/shoes/search/`, {
-          method: "POST",
+        const token = localStorage.getItem("token")
+        const shoesResponse = await fetch(`${API_BASE_URL}/api/shoes/all/`, {
           headers: {
             Authorization: `Token ${token}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            measurements: measurements
-              ? {
-                  length_inches: measurements.length_inches,
-                  width_inches: measurements.width_inches,
-                }
-              : null,
-            preferences: {
-              gender: preferences.gender,
-              brands: preferences.brand,
-              functions: preferences.function,
-              max_price: preferences.maxPrice,
-            },
-            sort_by: sortBy,
-            limit: 20,
-          }),
         })
 
-        if (searchResponse.ok) {
-          const searchData = await searchResponse.json()
-          shoes = searchData.shoes || []
+        if (shoesResponse.ok) {
+          const shoesData = await shoesResponse.json()
+          setAllShoes(shoesData.shoes || [])
         } else {
-          throw new Error(`Search failed: ${searchResponse.status}`)
+          throw new Error(`Failed to load shoes: ${shoesResponse.status}`)
         }
         */
 
-        // MOCK DATA with client-side filtering for demo
-        shoes = [...MOCK_SHOES]
-
-        // Apply mock filtering
-        if (preferences.gender.length > 0) {
-          const genderCodes = preferences.gender.map((g) => (g === "Men" ? "M" : g === "Women" ? "W" : "U"))
-          shoes = shoes.filter((shoe) => genderCodes.includes(shoe.gender))
-        }
-
-        if (preferences.brand.length > 0) {
-          shoes = shoes.filter((shoe) => preferences.brand.includes(shoe.company))
-        }
-
-        if (preferences.function.length > 0) {
-          shoes = shoes.filter((shoe) => preferences.function.includes(shoe.function))
-        }
-
-        if (preferences.maxPrice < 1000) {
-          shoes = shoes.filter((shoe) => shoe.price_usd <= preferences.maxPrice)
-        }
-
-        // Apply sorting
-        shoes.sort((a, b) => {
-          switch (sortBy) {
-            case "fit_score":
-              return (b.fit_score || 0) - (a.fit_score || 0)
-            case "price_low":
-              return a.price_usd - b.price_usd
-            case "price_high":
-              return b.price_usd - a.price_usd
-            default:
-              return 0
-          }
-        })
-      } catch (searchError) {
-        console.warn("Search endpoint error, using mock data:", searchError)
-        shoes = MOCK_SHOES
+        // MOCK DATA - Using expanded shoe list
+        setAllShoes(ALL_MOCK_SHOES)
+      } catch (shoesError) {
+        console.warn("Failed to load shoes from backend, using mock data:", shoesError)
+        setAllShoes(ALL_MOCK_SHOES)
+        setError("Using demo data. Backend integration pending.")
       }
-
-      setShoes(shoes)
     } catch (error) {
-      console.error("Failed to load recommendations:", error)
+      console.error("Failed to load data:", error)
       setError(error instanceof Error ? error.message : "Failed to load shoe recommendations. Please try again later.")
 
       // FALLBACK: Use mock data even on error
-      setShoes(MOCK_SHOES)
+      setAllShoes(ALL_MOCK_SHOES)
       setUserMeasurements(MOCK_USER_MEASUREMENTS)
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const applyFiltersAndSorting = () => {
+    let filtered = [...allShoes]
+
+    // Apply gender filter
+    if (preferences.gender.length > 0) {
+      const genderCodes = preferences.gender.map((g) => (g === "Men" ? "M" : g === "Women" ? "W" : "U"))
+      filtered = filtered.filter((shoe) => genderCodes.includes(shoe.gender))
+    }
+
+    // Apply brand filter
+    if (preferences.brand.length > 0) {
+      filtered = filtered.filter((shoe) => preferences.brand.includes(shoe.company))
+    }
+
+    // Apply function filter
+    if (preferences.function.length > 0) {
+      filtered = filtered.filter((shoe) => preferences.function.includes(shoe.function))
+    }
+
+    // Apply price filter
+    if (preferences.maxPrice < 1000) {
+      filtered = filtered.filter((shoe) => shoe.price_usd <= preferences.maxPrice)
+    }
+
+    // Apply sorting
+    filtered.sort((a, b) => {
+      switch (sortBy) {
+        case "fit_score":
+          return (b.fit_score || 0) - (a.fit_score || 0)
+        case "price_low":
+          return a.price_usd - b.price_usd
+        case "price_high":
+          return b.price_usd - a.price_usd
+        default:
+          return 0
+      }
+    })
+
+    setFilteredShoes(filtered)
   }
 
   const handleLogout = async () => {
@@ -586,8 +817,10 @@ export default function RecommendationsPage() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
               <div className="flex items-center space-x-4">
                 <p className="text-gray-600">
-                  Showing {shoes.length} recommendations
-                  <span className="ml-2 text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded-full">Mock Data</span>
+                  Showing {filteredShoes.length} of {allShoes.length} shoes
+                  <span className="ml-2 text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                    Frontend Filtering
+                  </span>
                 </p>
 
                 {/* Mobile Filter Button */}
@@ -696,12 +929,12 @@ export default function RecommendationsPage() {
             {error && (
               <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                 <p className="text-yellow-800">
-                  <strong>Note:</strong> Using mock data for demonstration. {error}
+                  <strong>Note:</strong> {error}
                 </p>
               </div>
             )}
 
-            {shoes.length === 0 ? (
+            {filteredShoes.length === 0 ? (
               <div className="bg-white rounded-lg shadow border border-gray-200 p-8 text-center">
                 <Package className="mx-auto h-12 w-12 text-gray-400 mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No shoes match your filters</h3>
@@ -715,7 +948,7 @@ export default function RecommendationsPage() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {shoes.map((shoe) => (
+                {filteredShoes.map((shoe) => (
                   <div
                     key={shoe.id}
                     className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow"
@@ -791,7 +1024,7 @@ export default function RecommendationsPage() {
       {/* Filter Modal */}
       {showFilters && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          {/* Background overlay - made much more transparent */}
+          {/* Background overlay */}
           <div
             className="absolute inset-0"
             style={{ backgroundColor: "rgba(0, 0, 0, 0.3)" }}
