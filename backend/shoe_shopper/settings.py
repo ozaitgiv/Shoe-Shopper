@@ -64,6 +64,7 @@ else:
 
 # Application definition
 INSTALLED_APPS = [
+    'storages',                                 # Added this line for Django Readibility
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -139,6 +140,17 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticated',
     ],
 }
+
+# AWS S3 Settings
+AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')          # Replace with your AWS Access Key
+AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')  # Replace with your AWS Secret Access Key
+AWS_STORAGE_BUCKET_NAME = os.getenv('shoe-shopper-images')
+AWS_S3_REGION_NAME = os.getenv('us-east-1')
+AWS_S3_FILE_OVERWRITE = False
+DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+STATICFILES_STORAGE = 'storages.backends.s3boto3.S3StaticStorage'
+AWS_DEFAULT_ACL = 'public-read'
+
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
