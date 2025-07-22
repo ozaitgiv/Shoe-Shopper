@@ -6,7 +6,7 @@ import { ShoppingBag, Ruler, Camera, Zap, Shield, Eye, EyeOff } from "lucide-rea
 import { useRouter } from "next/navigation"
 
 // API configuration
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+const API_BASE_URL = "https://shoeshopper.onrender.com"
 
 export default function LandingPage() {
   const router = useRouter()
@@ -31,19 +31,34 @@ export default function LandingPage() {
     confirm_password: "",
   })
 
-  // Get CSRF token
-  const getCSRFToken = async () => {
+// Get CSRF token
+const getCSRFToken = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/csrf/`, {
+      credentials: "include",
+    })
+    
+    // Get response as text first
+    const text = await response.text()
+    console.log('CSRF response text:', text)
+    
     try {
-      const response = await fetch(`${API_BASE_URL}/api/csrf/`, {
-        credentials: "include",
-      })
-      const data = await response.json()
+      // Try to parse as JSON
+      const data = JSON.parse(text)
       return data.csrfToken
-    } catch (error) {
-      console.error("Error getting CSRF token:", error)
-      return null
+    } catch (parseError) {
+      // If JSON parsing fails, try to extract token manually
+      const match = text.match(/csrfToken"([^"]+)"/)
+      if (match) {
+        return match[1]
+      }
+      throw new Error('Could not extract CSRF token')
     }
+  } catch (error) {
+    console.error("Error getting CSRF token:", error)
+    return null
   }
+} 
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -66,10 +81,10 @@ export default function LandingPage() {
       const data = await response.json()
 
       if (response.ok) {
-        // ✅ Store token in localStorage
+        // Store token in localStorage
         localStorage.setItem("token", data.token)
 
-        // ✅ Redirect to upload page
+        // Redirect to upload page
         router.push("/upload")
       } else {
         setError(data.error || "Login failed")
@@ -80,6 +95,7 @@ export default function LandingPage() {
       setIsLoading(false)
     }
   }
+  
   const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
@@ -94,6 +110,7 @@ export default function LandingPage() {
 
     try {
       const csrfToken = await getCSRFToken()
+      console.log('Got CSRF token:', csrfToken)
 
       const response = await fetch(`${API_BASE_URL}/api/auth/signup/`, {
         method: "POST",
@@ -111,15 +128,27 @@ export default function LandingPage() {
         }),
       })
 
+      console.log('Signup response status:', response.status)
       const data = await response.json()
+      console.log('Signup response data:', data)
 
       if (response.ok) {
-        // Signup successful - redirect to upload page
+        console.log('Signup successful!')
+        // Store token from signup response
+        if (data.token) {
+          localStorage.setItem("token", data.token)
+          console.log('Token stored:', data.token)
+        } else {
+          console.log('No token in response')
+        }
+        // Redirect to upload page
         router.push("/upload")
       } else {
+        console.log('Signup failed:', data.error)
         setError(data.error || "Signup failed")
       }
     } catch (error) {
+      console.log('Signup error:', error)
       setError("Network error. Please try again.")
     } finally {
       setIsLoading(false)

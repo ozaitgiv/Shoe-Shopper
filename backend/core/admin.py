@@ -1,11 +1,11 @@
-# backend/core/admin.py
 from django.contrib import admin, messages
+from django.utils.html import format_html
 from .models import Shoe, FootImage
 
 @admin.register(Shoe)
 class ShoeAdmin(admin.ModelAdmin):
     # What columns to show in the list view
-    list_display = ('company', 'model', 'gender', 'us_size', 'width_category', 'function', 'price_usd', 'is_active', 'has_insole_measurements')
+    list_display = ('shoe_image_preview', 'company', 'model', 'gender', 'us_size', 'width_category', 'function', 'price_usd', 'is_active', 'has_insole_measurements')
     
     # Add filters on the right side
     list_filter = ('company', 'gender', 'width_category', 'function', 'is_active')
@@ -21,6 +21,10 @@ class ShoeAdmin(admin.ModelAdmin):
         ('Basic Information', {
             'fields': ('company', 'model', 'gender', 'us_size', 'width_category', 'function', 'price_usd', 'product_url', 'is_active')
         }),
+        ('Product Image', {
+            'fields': ('shoe_image',),
+            'description': 'Upload a product image for this shoe model.'
+        }),
         ('Insole Measurements', {
             'fields': ('insole_image', 'insole_length', 'insole_width', 'insole_perimeter', 'insole_area'),
             'description': 'Upload an insole image to automatically calculate measurements, or enter them manually.'
@@ -29,6 +33,13 @@ class ShoeAdmin(admin.ModelAdmin):
     
     # Make the calculated fields read-only
     readonly_fields = ('insole_length', 'insole_width', 'insole_perimeter', 'insole_area')
+    
+    def shoe_image_preview(self, obj):
+        """Show a small preview of the shoe image in the admin list"""
+        if obj.shoe_image:
+            return format_html('<img src="{}" width="50" height="50" style="object-fit: cover; border-radius: 4px;" />', obj.shoe_image.url)
+        return "No Image"
+    shoe_image_preview.short_description = 'Image'
     
     def has_insole_measurements(self, obj):
         """Show if shoe has insole measurements"""

@@ -22,11 +22,30 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-4m(4i4=h@0+c&#
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
 
-# Determine if we're on Railway
+# Determine deployment environment
 IS_RAILWAY = 'RAILWAY_ENVIRONMENT' in os.environ
+IS_RENDER = 'RENDER' in os.environ
 
-if IS_RAILWAY:
-    # Production settings
+# Environment-specific configuration
+if IS_RENDER:
+    # Production settings for Render
+    DEBUG = False
+    ALLOWED_HOSTS = [
+        '.onrender.com',
+        os.environ.get('RENDER_EXTERNAL_HOSTNAME', ''),  # Render provides this
+    ]
+    CSRF_TRUSTED_ORIGINS = [
+        'https://*.onrender.com',
+        'https://*.vercel.app',  # For your Vercel frontend
+    ]
+    CORS_ALLOWED_ORIGINS = [
+        'https://*.vercel.app',  # Your Vercel frontend
+    ]
+    # Enable CORS for development/testing
+    CORS_ALLOW_ALL_ORIGINS = True  # Remove this after frontend is set up
+    
+elif IS_RAILWAY:
+    # Production settings for Railway
     DEBUG = False
     ALLOWED_HOSTS = ['.railway.app', '.up.railway.app']
     CSRF_TRUSTED_ORIGINS = [
@@ -36,6 +55,7 @@ if IS_RAILWAY:
     CORS_ALLOWED_ORIGINS = [
         'https://shoe-shopper-production.up.railway.app'
     ]
+    
 else:
     # Local development
     ALLOWED_HOSTS = ['localhost', '127.0.0.1']
@@ -90,10 +110,9 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'shoe_shopper.wsgi.application'
 
-# Database
-# Railway automatically provides DATABASE_URL with all connection details
+# Database configuration
 if 'DATABASE_URL' in os.environ:
-    # Railway PostgreSQL (production)
+    # Production database (Railway or Render)
     DATABASES = {
         'default': dj_database_url.config(
             default=os.environ.get('DATABASE_URL'),
@@ -102,7 +121,7 @@ if 'DATABASE_URL' in os.environ:
         )
     }
 else:
-    # Local development - SQLite (simpler for development)
+    # Local development - SQLite
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
@@ -138,11 +157,23 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# Static files storage - conditional based on environment
+if IS_RENDER or IS_RAILWAY:
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+else:
+    # Local development
+    STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
+
+# Create staticfiles directory if it doesn't exist
+os.makedirs(STATIC_ROOT, exist_ok=True)
 
 # Media files
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# Create media directory if it doesn't exist
+os.makedirs(MEDIA_ROOT, exist_ok=True)
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -150,6 +181,35 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # CORS settings
 CORS_ALLOW_CREDENTIALS = True
 
-# CSRF settings for secure API integration
-CSRF_COOKIE_HTTPONLY = False
-CSRF_COOKIE_SAMESITE = 'Lax'
+# CSRF settings for secure API integration and cross-site requests
+if IS_RENDER or IS_RAILWAY:
+    # Production CSRF settings for cross-site requests
+    CSRF_COOKIE_SAMESITE = 'None'
+    CSRF_COOKIE_SECURE = True
+    CSRF_COOKIE_HTTPONLY = False
+    
+    # Session cookie settings for cross-site requests
+    SESSION_COOKIE_SAMESITE = 'None' 
+    SESSION_COOKIE_SECURE = True
+else:
+    # Local development CSRF settings
+    CSRF_COOKIE_HTTPONLY = False
+    CSRF_COOKIE_SAMESITE = 'Lax'
+
+# Logging configuration for production debugging
+if IS_RENDER or IS_RAILWAY:
+    LOGGING = {
+        'version': 1,
+        'disable_existing_loggers': False,
+        'handlers': {
+            'console': {
+                'class': 'logging.StreamHandler',
+            },
+        },
+        'loggers': {
+            'django': {
+                'handlers': ['console'],
+                'level': 'INFO',
+            },
+        },
+    }
