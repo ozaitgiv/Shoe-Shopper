@@ -352,7 +352,12 @@ export default function RecommendationsPage() {
 
   // Get shoe image URL with proper fallback
   const getShoeImageUrl = (shoe: Shoe) => {
-    // Use shoe_image from backend if available
+    // First try the computed image_url field from the backend
+    if (shoe.image_url) {
+      return shoe.image_url
+    }
+    
+    // Fallback to shoe_image field if available
     if (shoe.shoe_image) {
       // If it's a full URL, use it directly
       if (shoe.shoe_image.startsWith('http')) {
@@ -362,7 +367,7 @@ export default function RecommendationsPage() {
       return `${API_BASE_URL}${shoe.shoe_image}`
     }
     
-    // Fallback to placeholder
+    // Final fallback to placeholder
     return `/placeholder.svg?height=200&width=200&text=${encodeURIComponent(shoe.company + ' ' + shoe.model)}`
   }
 
