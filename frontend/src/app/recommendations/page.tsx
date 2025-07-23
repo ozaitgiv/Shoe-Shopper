@@ -36,7 +36,7 @@ const BRAND_OPTIONS = [
   "Solomon",
   "Thursday",
 ]
-const FUNCTION_OPTIONS = ["Casual", "Hiking", "Work", "Running"]
+const FUNCTION_OPTIONS = ["casual", "hiking", "work", "running"]
 
 interface AppUser {
   id: number
