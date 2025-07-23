@@ -98,37 +98,39 @@ def enhanced_score_shoe(user_length, user_width, shoe_length, shoe_width):
     # Calculate ideal shoe length (foot + thumb space)
     ideal_shoe_length = user_length + 0.625  # 5/8 inch thumb width
     
-    # Calculate differences from ideal measurements
-    length_diff = abs(shoe_length - ideal_shoe_length)
+    # Calculate directional difference
+    length_diff = shoe_length - ideal_shoe_length  # positive if shoe is longer
+    
+    # More lenient toward larger shoes, stricter on smaller
+    if length_diff >= 0:  # Shoe is longer than ideal
+        if length_diff <= 0.35:  # Perfect fit zone
+            length_score = 100
+        elif length_diff <= 0.8:  # Good fit zone
+            length_score = 90 - (length_diff - 0.35) * 30
+        elif length_diff <= 1.5:  # Acceptable zone
+            length_score = 75 - (length_diff - 0.8) * 40
+        else:  # Too big
+            length_score = max(0, 50 - (length_diff - 1.5) * 30)
+    else:  # Shoe is shorter than ideal (penalize more harshly)
+        shortfall = abs(length_diff)
+        if shortfall <= 0.2:  # Barely too small
+            length_score = 90 - (shortfall) * 80
+        elif shortfall <= 0.5:  # Clearly too small
+            length_score = 60 - (shortfall - 0.2) * 120
+        else:  # Significantly too small
+            length_score = max(0, 30 - (shortfall - 0.5) * 150)
+    
+    # Width scoring (unchanged)
     width_diff = abs(shoe_width - user_width)
     
-    # Length scoring with proper tolerance zones
-    if length_diff <= 0.35:  # Perfect fit zone
-        length_score = 100
-    elif length_diff <= 0.7:  # Good fit zone
-        length_score = 90 - (length_diff - 0.125) * 40
-    elif length_diff <= 1.4:  # Acceptable zone
-        length_score = 75 - (length_diff - 0.25) * 60
-    else:  # Poor fit
-        length_score = max(0, 50 - (length_diff - 0.5) * 50)
-    
-    # Penalize shoes that are too short
-    #if shoe_length < user_length + 0.25:
-        #length_score = max(0, length_score - 30)
-    
-    # Width scoring with tight tolerances
-    if width_diff <= 0.2:  # Perfect fit zone
+    if width_diff <= 0.2:
         width_score = 100
-    elif width_diff <= 0.4:  # Good fit zone
+    elif width_diff <= 0.4:
         width_score = 90 - (width_diff - 0.05) * 100
-    elif width_diff <= 0.8:  # Acceptable zone
+    elif width_diff <= 0.8:
         width_score = 75 - (width_diff - 0.1) * 150
-    else:  # Poor fit
+    else:
         width_score = max(0, 60 - (width_diff - 0.2) * 100)
-    
-    # Penalize shoes that are too narrow
-    #if shoe_width < user_width - 0.05:
-        #width_score = max(0, width_score - 25)
     
     # Weighted final score
     final_score = (length_score * 0.65) + (width_score * 0.35)
