@@ -19,7 +19,6 @@ import Link from "next/link"
 
 // API configuration
 const API_BASE_URL = "https://shoeshopper.onrender.com"
-<<<<<<< HEAD
 
 const GENDER_OPTIONS = ["Men", "Women", "Unisex"]
 const BRAND_OPTIONS = [
