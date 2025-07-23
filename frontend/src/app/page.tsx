@@ -5,18 +5,16 @@ import { useState } from "react"
 import { ShoppingBag, Ruler, Camera, Zap, Shield, Eye, EyeOff } from "lucide-react"
 import { useRouter } from "next/navigation"
 
-// API configuration
-const API_BASE_URL = "https://shoeshopper.onrender.com"
+// Base URL for backend API
+const API_BASE_URL = "https://shoeshopper.onrender.com" // [Walkthrough] Base URL for backend API
 
 export default function LandingPage() {
-  const router = useRouter()
-  const [showLogin, setShowLogin] = useState(false)
-  const [showSignup, setShowSignup] = useState(false)
-  const [showPassword, setShowPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState("")
-
+  const router = useRouter() // Next.js router for navigation
+  const [showLogin, setShowLogin] = useState(false) // Controls visibility of Login modal
+  const [showSignup, setShowSignup] = useState(false) // Controls visibility of Signup modal
+  const [showPassword, setShowPassword] = useState(false) // Toggles password field visibility
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false) // Toggles confirm password field visibility
+  
   const [loginForm, setLoginForm] = useState({
     username: "",
     password: "",
@@ -34,496 +32,245 @@ export default function LandingPage() {
 // Get CSRF token
 const getCSRFToken = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/csrf/`, {
+    const response = await fetch(`${API_BASE_URL}/auth/csrf_cookie/`, {
       credentials: "include",
     })
-    
-    // Get response as text first
-    const text = await response.text()
-    console.log('CSRF response text:', text)
-    
-    try {
-      // Try to parse as JSON
-      const data = JSON.parse(text)
-      return data.csrfToken
-    } catch (parseError) {
-      // If JSON parsing fails, try to extract token manually
-      const match = text.match(/csrfToken"([^"]+)"/)
-      if (match) {
-        return match[1]
-      }
-      throw new Error('Could not extract CSRF token')
+    if (!response.ok) {
+      throw new Error("Failed to get CSRF token")
     }
   } catch (error) {
     console.error("Error getting CSRF token:", error)
-    return null
   }
-} 
+}
 
-  const handleLoginSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-    setError("")
+// Handle login form submission
+const handleLoginSubmit = async (e: React.FormEvent) => {
+  e.preventDefault()
+  try {
+    await getCSRFToken()
 
-    try {
-      const csrfToken = await getCSRFToken()
+    const response = await fetch(`${API_BASE_URL}/auth/login/`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify(loginForm),
+    })
 
-      const response = await fetch(`${API_BASE_URL}/api/auth/login/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRFToken": csrfToken,
-        },
-        credentials: "include",
-        body: JSON.stringify(loginForm),
-      })
-
-      const data = await response.json()
-
-      if (response.ok) {
-        // Store token in localStorage
-        localStorage.setItem("token", data.token)
-
-        // Redirect to upload page
-        router.push("/upload")
-      } else {
-        setError(data.error || "Login failed")
-      }
-    } catch (error) {
-      setError("Network error. Please try again.")
-    } finally {
-      setIsLoading(false)
-    }
-  }
-  
-  const handleSignupSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-    setError("")
-
-    // Client-side validation
-    if (signupForm.password !== signupForm.confirm_password) {
-      setError("Passwords don't match")
-      setIsLoading(false)
-      return
+    if (!response.ok) {
+      throw new Error("Login failed")
     }
 
-    try {
-      const csrfToken = await getCSRFToken()
-      console.log('Got CSRF token:', csrfToken)
-
-      const response = await fetch(`${API_BASE_URL}/api/auth/signup/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRFToken": csrfToken,
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          username: signupForm.username,
-          email: signupForm.email,
-          first_name: signupForm.first_name,
-          last_name: signupForm.last_name,
-          password: signupForm.password,
-        }),
-      })
-
-      console.log('Signup response status:', response.status)
-      const data = await response.json()
-      console.log('Signup response data:', data)
-
-      if (response.ok) {
-        console.log('Signup successful!')
-        // Store token from signup response
-        if (data.token) {
-          localStorage.setItem("token", data.token)
-          console.log('Token stored:', data.token)
-        } else {
-          console.log('No token in response')
-        }
-        // Redirect to upload page
-        router.push("/upload")
-      } else {
-        console.log('Signup failed:', data.error)
-        setError(data.error || "Signup failed")
-      }
-    } catch (error) {
-      console.log('Signup error:', error)
-      setError("Network error. Please try again.")
-    } finally {
-      setIsLoading(false)
-    }
+    setShowLogin(false)
+    router.push("/dashboard")
+  } catch (error) {
+    console.error("Error logging in:", error)
   }
+}
 
+// Handle signup form submission
+const handleSignupSubmit = async (e: React.FormEvent) => {
+  e.preventDefault()
+  try {
+    await getCSRFToken()
+
+    const response = await fetch(`${API_BASE_URL}/auth/signup/`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify(signupForm),
+    })
+
+    if (!response.ok) {
+      throw new Error("Signup failed")
+    }
+
+    setShowSignup(false)
+    router.push("/dashboard")
+  } catch (error) {
+    console.error("Error signing up:", error)
+  }
+}
+
+// UI render --------------------------------------------------------
+return (
+  <main className="flex min-h-screen flex-col items-center justify-center gap-16 p-8 md:p-24">
+    {/* Hero Section */}
+    <section className="flex flex-col items-center text-center gap-6 max-w-2xl">
+      <h1 className="text-5xl font-extrabold tracking-tight sm:text-6xl">
+        Find Shoes That <span className="text-primary">Actually Fit</span>
+      </h1>
+      <p className="text-lg text-muted-foreground">
+        Upload a top-down photo of your foot on a piece of paper – we’ll handle the sizing and suggest shoes that fit like a glove.
+      </p>
+      <div className="flex gap-4">
+        <button className="btn btn-primary" onClick={() => setShowSignup(true)}>
+          Get Started
+        </button>
+        <button className="btn btn-outline" onClick={() => setShowLogin(true)}>
+          Log In
+        </button>
+      </div>
+    </section>
+
+    {/* Feature Grid */}
+    <section className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 max-w-4xl">
+      <Feature icon={<Camera />} title="Photo Upload" description="Simple foot capture with your phone’s camera." />
+      <Feature icon={<Ruler />} title="Accurate Sizing" description="ML-driven measurement down to the millimeter." />
+      <Feature icon={<ShoppingBag />} title="Smart Recommendations" description="Find shoes from top brands that truly fit." />
+      <Feature icon={<Shield />} title="Privacy First" description="Your photos never leave our secure servers." />
+      <Feature icon={<Zap />} title="Fast Results" description="Get recommendations in under 10 seconds." />
+    </section>
+
+    {/* Login Modal */}
+    {showLogin && (
+      <Modal onClose={() => setShowLogin(false)} title="Log In">
+        {/* Login Form */}
+        <form className="space-y-4" onSubmit={handleLoginSubmit}>
+          {/* Username */}
+          <input
+            type="text"
+            placeholder="Username"
+            className="input input-bordered w-full"
+            value={loginForm.username}
+            onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
+            required
+          />
+          {/* Password */}
+          <div className="relative">
+            <input
+              type={showPassword ? "text" : "password"}
+              placeholder="Password"
+              className="input input-bordered w-full pr-10"
+              value={loginForm.password}
+              onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+              required
+            />
+            <button
+              type="button"
+              className="absolute inset-y-0 right-0 pr-3 flex items-center"
+              onClick={() => setShowPassword(!showPassword)}
+            >
+              {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+            </button>
+          </div>
+          {/* Submit */}
+          <button type="submit" className="btn btn-primary w-full">
+            Log In
+          </button>
+        </form>
+      </Modal>
+    )}
+
+    {/* Signup Modal */}
+    {showSignup && (
+      <Modal onClose={() => setShowSignup(false)} title="Sign Up">
+        {/* Signup Form */}
+        <form className="space-y-4" onSubmit={handleSignupSubmit}>
+          <input
+            type="text"
+            placeholder="Username"
+            className="input input-bordered w-full"
+            value={signupForm.username}
+            onChange={(e) => setSignupForm({ ...signupForm, username: e.target.value })}
+            required
+          />
+          <input
+            type="email"
+            placeholder="Email"
+            className="input input-bordered w-full"
+            value={signupForm.email}
+            onChange={(e) => setSignupForm({ ...signupForm, email: e.target.value })}
+            required
+          />
+          <div className="flex gap-4">
+            <input
+              type="text"
+              placeholder="First Name"
+              className="input input-bordered w-full"
+              value={signupForm.first_name}
+              onChange={(e) => setSignupForm({ ...signupForm, first_name: e.target.value })}
+            />
+            <input
+              type="text"
+              placeholder="Last Name"
+              className="input input-bordered w-full"
+              value={signupForm.last_name}
+              onChange={(e) => setSignupForm({ ...signupForm, last_name: e.target.value })}
+            />
+          </div>
+          <div className="flex gap-4">
+            <div className="relative w-full">
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="Password"
+                className="input input-bordered w-full pr-10"
+                value={signupForm.password}
+                onChange={(e) => setSignupForm({ ...signupForm, password: e.target.value })}
+                required
+              />
+              <button
+                type="button"
+                className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                onClick={() => setShowPassword(!showPassword)}
+              >
+                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
+            <div className="relative w-full">
+              <input
+                type={showConfirmPassword ? "text" : "password"}
+                placeholder="Confirm Password"
+                className="input input-bordered w-full pr-10"
+                value={signupForm.confirm_password}
+                onChange={(e) => setSignupForm({ ...signupForm, confirm_password: e.target.value })}
+                required
+              />
+              <button
+                type="button"
+                className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+              >
+                {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
+          </div>
+          <button type="submit" className="btn btn-primary w-full">
+            Sign Up
+          </button>
+        </form>
+      </Modal>
+    )}
+  </main>
+)
+}
+
+// -----------------------------------------------------------------------------
+// Feature card component
+function Feature({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
   return (
-    <div className="min-h-screen bg-white">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-2">
-              <ShoppingBag className="h-8 w-8 text-blue-600" />
-              <h1 className="text-xl font-bold text-gray-900">Shoe Shopper</h1>
-            </div>
-            <div className="flex items-center space-x-4">
-              <button onClick={() => setShowLogin(true)} className="text-gray-600 hover:text-gray-900 font-medium">
-                Login
-              </button>
-              <button
-                onClick={() => setShowSignup(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
-              >
-                Sign Up
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
+    <div className="flex flex-col items-center gap-2 text-center p-4 border rounded-lg shadow-sm">
+      <div className="p-2 bg-primary/10 rounded-full">{icon}</div>
+      <h3 className="font-semibold">{title}</h3>
+      <p className="text-sm text-muted-foreground">{description}</p>
+    </div>
+  )
+}
 
-      {/* Hero Section */}
-      <section className="bg-gradient-to-br from-blue-50 to-indigo-100 py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">Find Your Perfect Fit</h1>
-            <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
-              Upload a photo of your foot on paper and let our AI-powered measurement system recommend the perfect shoes
-              for your feet.
-            </p>
-            <div className="flex justify-center">
-              <button
-                onClick={() => setShowSignup(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-semibold text-lg transition-colors"
-              >
-                Get Started Free
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section className="py-20 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">How Shoe Shopper Works</h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Our advanced computer vision technology makes finding the right shoe size simple and accurate.
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-8">
-            <div className="text-center">
-              <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Camera className="h-8 w-8 text-blue-600" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-4">1. Upload Photo</h3>
-              <p className="text-gray-600">
-                Take a photo of your foot placed on a piece of paper. Our system uses the paper as a reference for
-                accurate measurements.
-              </p>
-            </div>
-
-            <div className="text-center">
-              <div className="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Ruler className="h-8 w-8 text-green-600" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-4">2. AI Measurement</h3>
-              <p className="text-gray-600">
-                Our computer vision algorithm analyzes your photo and calculates precise length and width measurements
-                of your foot.
-              </p>
-            </div>
-
-            <div className="text-center">
-              <div className="bg-purple-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
-                <ShoppingBag className="h-8 w-8 text-purple-600" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-4">3. Perfect Recommendations</h3>
-              <p className="text-gray-600">
-                Get personalized shoe recommendations based on your exact measurements, ensuring the perfect fit every
-                time.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Benefits Section */}
-      <section className="py-20 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-2xl mx-auto">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-12">Why Choose Shoe Shopper?</h2>
-            <div className="space-y-8">
-              <div className="flex items-start space-x-4">
-                <div className="bg-blue-100 w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                  <Zap className="h-4 w-4 text-blue-600" />
-                </div>
-                <div className="text-left">
-                  <h3 className="font-semibold text-gray-900 mb-2">Lightning Fast</h3>
-                  <p className="text-gray-600">Get accurate measurements in seconds with our advanced AI technology.</p>
-                </div>
-              </div>
-              <div className="flex items-start space-x-4">
-                <div className="bg-green-100 w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                  <Shield className="h-4 w-4 text-green-600" />
-                </div>
-                <div className="text-left">
-                  <h3 className="font-semibold text-gray-900 mb-2">Highly Accurate</h3>
-                  <p className="text-gray-600">
-                    Our computer vision system provides precise measurements for the best fit.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="bg-gray-900 text-white py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-center">
-            <div className="flex items-center space-x-2">
-              <ShoppingBag className="h-6 w-6" />
-              <span className="font-semibold">Shoe Shopper</span>
-            </div>
-          </div>
-        </div>
-      </footer>
-
-      {/* Login Modal */}
-      {showLogin && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
-        >
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-900">Login</h2>
-              <button onClick={() => setShowLogin(false)} className="text-gray-400 hover:text-gray-600">
-                ✕
-              </button>
-            </div>
-
-            {error && <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">{error}</div>}
-
-            <form onSubmit={handleLoginSubmit} className="space-y-4">
-              <div>
-                <label htmlFor="login-username" className="block text-sm font-medium text-gray-700 mb-1">
-                  Username
-                </label>
-                <input
-                  type="text"
-                  id="login-username"
-                  value={loginForm.username}
-                  onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
-                  required
-                  disabled={isLoading}
-                />
-              </div>
-              <div>
-                <label htmlFor="login-password" className="block text-sm font-medium text-gray-700 mb-1">
-                  Password
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    id="login-password"
-                    value={loginForm.password}
-                    onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-10 text-black"
-                    required
-                    disabled={isLoading}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
-                    disabled={isLoading}
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-              </div>
-              <button
-                type="submit"
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={isLoading}
-              >
-                {isLoading ? "Logging in..." : "Login"}
-              </button>
-            </form>
-            <div className="mt-4 text-center">
-              <p className="text-sm text-gray-600">
-                Don't have an account?{" "}
-                <button
-                  onClick={() => {
-                    setShowLogin(false)
-                    setShowSignup(true)
-                    setError("")
-                  }}
-                  className="text-blue-600 hover:text-blue-700 font-medium"
-                  disabled={isLoading}
-                >
-                  Sign up
-                </button>
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Signup Modal */}
-      {showSignup && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
-        >
-          <div className="bg-white rounded-lg max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-900">Sign Up</h2>
-              <button onClick={() => setShowSignup(false)} className="text-gray-400 hover:text-gray-600">
-                ✕
-              </button>
-            </div>
-
-            {error && <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">{error}</div>}
-
-            <form onSubmit={handleSignupSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="first-name" className="block text-sm font-medium text-gray-700 mb-1">
-                    First Name
-                  </label>
-                  <input
-                    type="text"
-                    id="first-name"
-                    value={signupForm.first_name}
-                    onChange={(e) => setSignupForm({ ...signupForm, first_name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
-                    required
-                    disabled={isLoading}
-                  />
-                </div>
-                <div>
-                  <label htmlFor="last-name" className="block text-sm font-medium text-gray-700 mb-1">
-                    Last Name
-                  </label>
-                  <input
-                    type="text"
-                    id="last-name"
-                    value={signupForm.last_name}
-                    onChange={(e) => setSignupForm({ ...signupForm, last_name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
-                    required
-                    disabled={isLoading}
-                  />
-                </div>
-              </div>
-              <div>
-                <label htmlFor="signup-username" className="block text-sm font-medium text-gray-700 mb-1">
-                  Username
-                </label>
-                <input
-                  type="text"
-                  id="signup-username"
-                  value={signupForm.username}
-                  onChange={(e) => setSignupForm({ ...signupForm, username: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
-                  required
-                  disabled={isLoading}
-                />
-              </div>
-              <div>
-                <label htmlFor="signup-email" className="block text-sm font-medium text-gray-700 mb-1">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  id="signup-email"
-                  value={signupForm.email}
-                  onChange={(e) => setSignupForm({ ...signupForm, email: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
-                  required
-                  disabled={isLoading}
-                />
-              </div>
-              <div>
-                <label htmlFor="signup-password" className="block text-sm font-medium text-gray-700 mb-1">
-                  Password
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    id="signup-password"
-                    value={signupForm.password}
-                    onChange={(e) => setSignupForm({ ...signupForm, password: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-10 text-black"
-                    required
-                    disabled={isLoading}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
-                    disabled={isLoading}
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-              </div>
-              <div>
-                <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700 mb-1">
-                  Confirm Password
-                </label>
-                <div className="relative">
-                  <input
-                    type={showConfirmPassword ? "text" : "password"}
-                    id="confirm-password"
-                    value={signupForm.confirm_password}
-                    onChange={(e) => setSignupForm({ ...signupForm, confirm_password: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-10 text-black"
-                    required
-                    disabled={isLoading}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
-                    disabled={isLoading}
-                  >
-                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-              </div>
-              <button
-                type="submit"
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={isLoading}
-              >
-                {isLoading ? "Creating Account..." : "Create Account"}
-              </button>
-            </form>
-            <div className="mt-4 text-center">
-              <p className="text-sm text-gray-600">
-                Already have an account?{" "}
-                <button
-                  onClick={() => {
-                    setShowSignup(false)
-                    setShowLogin(true)
-                    setError("")
-                  }}
-                  className="text-blue-600 hover:text-blue-700 font-medium"
-                  disabled={isLoading}
-                >
-                  Login
-                </button>
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+// Generic modal wrapper
+function Modal({ onClose, title, children }: { onClose: () => void; title: string; children: React.ReactNode }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="bg-white dark:bg-zinc-900 p-6 rounded-lg w-full max-w-md shadow-lg relative">
+        <button className="absolute top-3 right-3" onClick={onClose}>
+          ✕
+        </button>
+        <h2 className="text-xl font-semibold mb-4">{title}</h2>
+        {children}
+      </div>
     </div>
   )
 }
