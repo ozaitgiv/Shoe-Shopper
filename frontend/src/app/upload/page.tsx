@@ -689,7 +689,7 @@ export default function Dashboard() {
                     {/* Example Image */}
                     <div>
                       <h4 className="font-medium mb-3 text-gray-900">Example Photo</h4>
-                      <Image
+                      <img
                         src="/Images/foot-example.jpg"
                         alt="Example of foot placed on white paper for measurement"
                         width={300}
