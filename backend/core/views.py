@@ -310,42 +310,37 @@ def shoe_detail(request, pk):
 
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
-def shoe_recommendations(request):
-    """Get shoe recommendations based on foot measurements"""
-    length = request.GET.get('length')
-    width = request.GET.get('width')
-    
-    if not length or not width:
-        return Response({'error': 'Length and width parameters required'}, status=status.HTTP_400_BAD_REQUEST)
-    
-    try:
-        length = float(length)
-        width = float(width)
-    except ValueError:
-        return Response({'error': 'Invalid length or width values'}, status=status.HTTP_400_BAD_REQUEST)
-    
-    # Find shoes with similar insole measurements (within tolerance)
-    tolerance = 0.5  # inches
-    
-    shoes = Shoe.objects.filter(
-        is_active=True,
-        insole_length__isnull=False,
-        insole_width__isnull=False,
-        insole_length__gte=length - tolerance,
-        insole_length__lte=length + tolerance,
-        insole_width__gte=width - tolerance,
-        insole_width__lte=width + tolerance
-    ).order_by('price_usd')
-    
-    serializer = ShoeSerializer(shoes, many=True, context={'request': request})
+@permission_classes([IsAuthenticated])
+def recommendations(request):
+    foot_image = FootImage.objects.filter(user=request.user, status='complete').order_by('-uploaded_at').first()
+    if not foot_image or foot_image.length_inches is None or foot_image.width_inches is None:
+        return Response({'error': 'No completed foot measurement found. Please upload and process a foot image first.'}, status=400)
+
+    user_length = foot_image.length_inches
+    user_width = foot_image.width_inches
+
+    shoes = Shoe.objects.filter(is_active=True)
+    scored_shoes = []
+    for shoe in shoes:
+        shoe_length, shoe_width = get_shoe_dimensions(shoe)
+        score = score_shoe(user_length, user_width, shoe_length, shoe_width)
+        scored_shoes.append((score, shoe))
+
+    scored_shoes.sort(reverse=True, key=lambda x: x[0])
+
+    recommendations = []
+    for score, shoe in scored_shoes:
+        data = ShoeSerializer(shoe, context={'request': request}).data
+        data['fit_score'] = score
+        recommendations.append(data)
+
     return Response({
         'foot_measurements': {
-            'length': length,
-            'width': width
+            'length': user_length,
+            'width': user_width,
         },
-        'recommendations': serializer.data,
-        'count': len(serializer.data)
+        'recommendations': recommendations,
+        'count': len(recommendations),
     })
 
 
