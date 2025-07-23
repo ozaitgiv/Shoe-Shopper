@@ -246,6 +246,15 @@ const loadAllShoes = async (token: string) => {
     }
   }
 
+  const savePreferences = (newPreferences: UserPreferences) => {
+  try {
+    localStorage.setItem("userPreferences", JSON.stringify(newPreferences))
+    setPreferences(newPreferences)
+  } catch (error) {
+    console.error("Error saving preferences:", error)
+  }
+}
+
   const handleFilterChange = (category: keyof UserPreferences, value: string) => {
     if (category === "maxPrice") return
 
