@@ -10,6 +10,7 @@ from .views import (
     user_info,
     recommendations,
     delete_account,
+    shoe_list_with_scores,
 )
 
 urlpatterns = [
@@ -26,6 +27,9 @@ urlpatterns = [
     # Measurements
     path("measurements/upload/", FootImageUploadView.as_view(), name="measurement-upload"),
     path("measurements/<int:pk>/", FootImageDetailView.as_view(), name="measurement-detail"),
+    path("measurements/latest/", get_latest_measurement, name="latest-measurement"),
+
+    # Shoes & Recommendations
     path("recommendations/", recommendations, name="recommendations"),
-    path("measurements/latest/", get_latest_measurement, name="latest-measurement"),  
+    path("shoes/", shoe_list_with_scores, name="shoe-list"),
 ]

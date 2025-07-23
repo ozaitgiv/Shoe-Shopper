@@ -66,29 +66,73 @@ def parse_predictions(result_json):
             
     return paper_dims, foot_dims
 
-def score_shoe(user_length, user_width, shoe_length, shoe_width):
-    length_diff = shoe_length - user_length
-    width_diff = shoe_width - user_width
-    if length_diff < 0 or width_diff < 0:
-        return 0  # Shoe is too small
-    score = 100 - (length_diff * 10 + width_diff * 10)
-    return max(score, 0)
+# === ENHANCED RECOMMENDATION ALGORITHM ===
 
-US_MENS_SIZE_TO_LENGTH = {
-    7: 9.625, 7.5: 9.75, 8: 9.9375, 8.5: 10.125, 9: 10.25, 9.5: 10.4375, 10: 10.5625, 10.5: 10.75, 11: 10.9375, 11.5: 11.125, 12: 11.25
-}
-WIDTH_CATEGORY_TO_WIDTH = {
-    'N': 3.4,  # Narrow
-    'D': 3.6,  # Regular
-    'W': 3.8,  # Wide
-}
+def get_real_shoe_dimensions(shoe):
+    """
+    Use real insole measurements if available, fallback to static mapping
+    """
+    if shoe.insole_length and shoe.insole_width:
+        # Use actual measured insole dimensions
+        return shoe.insole_length, shoe.insole_width
+    else:
+        # Fallback to static mapping for shoes without measurements
+        US_MENS_SIZE_TO_LENGTH = {
+            7: 9.625, 7.5: 9.75, 8: 9.9375, 8.5: 10.125, 9: 10.25, 
+            9.5: 10.4375, 10: 10.5625, 10.5: 10.75, 11: 10.9375, 
+            11.5: 11.125, 12: 11.25, 12.5: 11.4375, 13: 11.625
+        }
+        WIDTH_CATEGORY_TO_WIDTH = {
+            'N': 3.4,  # Narrow
+            'D': 3.6,  # Regular
+            'W': 3.8,  # Wide
+        }
+        length = US_MENS_SIZE_TO_LENGTH.get(float(shoe.us_size), 10.0)
+        width = WIDTH_CATEGORY_TO_WIDTH.get(shoe.width_category, 3.6)
+        return length, width
 
-def get_shoe_dimensions(shoe):
-    length = US_MENS_SIZE_TO_LENGTH.get(float(shoe.us_size), 10.0)
-    width = WIDTH_CATEGORY_TO_WIDTH.get(shoe.width_category, 3.6)
-    return length, width
-
-# === Upload API ===
+def enhanced_score_shoe(user_length, user_width, shoe_length, shoe_width):
+    """
+    Enhanced scoring with proper shoe fitting practices
+    """
+    # Calculate ideal shoe length (foot + thumb space)
+    ideal_shoe_length = user_length + 0.625  # 5/8 inch thumb width
+    
+    # Calculate differences from ideal measurements
+    length_diff = abs(shoe_length - ideal_shoe_length)
+    width_diff = abs(shoe_width - user_width)
+    
+    # Length scoring with proper tolerance zones
+    if length_diff <= 0.125:  # Perfect fit zone
+        length_score = 100
+    elif length_diff <= 0.25:  # Good fit zone
+        length_score = 90 - (length_diff - 0.125) * 40
+    elif length_diff <= 0.5:  # Acceptable zone
+        length_score = 75 - (length_diff - 0.25) * 60
+    else:  # Poor fit
+        length_score = max(0, 50 - (length_diff - 0.5) * 50)
+    
+    # Penalize shoes that are too short
+    if shoe_length < user_length + 0.25:
+        length_score = max(0, length_score - 30)
+    
+    # Width scoring with tight tolerances
+    if width_diff <= 0.05:  # Perfect fit zone
+        width_score = 100
+    elif width_diff <= 0.1:  # Good fit zone
+        width_score = 90 - (width_diff - 0.05) * 100
+    elif width_diff <= 0.2:  # Acceptable zone
+        width_score = 75 - (width_diff - 0.1) * 150
+    else:  # Poor fit
+        width_score = max(0, 60 - (width_diff - 0.2) * 100)
+    
+    # Penalize shoes that are too narrow
+    if shoe_width < user_width - 0.05:
+        width_score = max(0, width_score - 25)
+    
+    # Weighted final score
+    final_score = (length_score * 0.65) + (width_score * 0.35)
+    return round(final_score, 1)
 
 # === ENHANCED INSOLE PROCESSING FUNCTIONS ===
 
@@ -264,6 +308,7 @@ class FootImageDetailView(APIView):
             response_data["width_inches"] = foot_image.width_inches
         if foot_image.status == "error":
             response_data["error_message"] = foot_image.error_message or "There was an error processing your image."
+
         return Response(response_data)
 
 
@@ -349,6 +394,41 @@ def shoe_recommendations(request):
     })
 
 
+@api_view(['GET'])  
+@permission_classes([AllowAny])
+def shoe_list_with_scores(request):
+    """Get all shoes with fit scores for authenticated users"""
+    shoes = Shoe.objects.filter(is_active=True)
+    
+    # If user is authenticated and has measurements, add fit scores
+    if request.user.is_authenticated:
+        foot_image = FootImage.objects.filter(
+            user=request.user,
+            status='complete'
+        ).order_by('-uploaded_at').first()
+        
+        if foot_image and foot_image.length_inches and foot_image.width_inches:
+            user_length = foot_image.length_inches
+            user_width = foot_image.width_inches
+            
+            result = []
+            for shoe in shoes:
+                shoe_length, shoe_width = get_real_shoe_dimensions(shoe)
+                score = enhanced_score_shoe(user_length, user_width, shoe_length, shoe_width)
+                
+                data = ShoeSerializer(shoe, context={'request': request}).data
+                data['fit_score'] = score
+                result.append(data)
+            
+            # Sort by fit score
+            result.sort(key=lambda x: x.get('fit_score', 0), reverse=True)
+            return Response(result)
+    
+    # For unauthenticated users or users without measurements
+    serializer = ShoeSerializer(shoes, many=True, context={'request': request})
+    return Response(serializer.data)
+
+
 # === CSRF TOKEN ===
 
 @ensure_csrf_cookie
@@ -388,25 +468,66 @@ def logout_view(request):
 
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def recommendations(request):
-    foot_image = FootImage.objects.filter(status='complete').order_by('-uploaded_at').first()
+    """Get shoe recommendations using real insole measurements"""
+    foot_image = FootImage.objects.filter(
+        user=request.user, 
+        status='complete'
+    ).order_by('-uploaded_at').first()
+    
     if not foot_image or foot_image.length_inches is None or foot_image.width_inches is None:
-        return Response({'error': 'No completed foot measurement found. Please upload and process a foot image first.'}, status=400)
+        return Response({
+            'error': 'No completed foot measurement found. Please upload and process a foot image first.'
+        }, status=400)
+    
     user_length = foot_image.length_inches
     user_width = foot_image.width_inches
+    
+    # Get all active shoes
     shoes = Shoe.objects.filter(is_active=True)
     scored_shoes = []
+    
     for shoe in shoes:
-        shoe_length, shoe_width = get_shoe_dimensions(shoe)
-        score = score_shoe(user_length, user_width, shoe_length, shoe_width)
+        # Use real measurements instead of static mapping
+        shoe_length, shoe_width = get_real_shoe_dimensions(shoe)
+        score = enhanced_score_shoe(user_length, user_width, shoe_length, shoe_width)
         scored_shoes.append((score, shoe))
+    
+    # Sort by fit score (highest first)
     scored_shoes.sort(reverse=True, key=lambda x: x[0])
+    
+    # Prepare response
     result = []
     for score, shoe in scored_shoes:
-        data = ShoeSerializer(shoe).data
+        data = ShoeSerializer(shoe, context={'request': request}).data
         data['fit_score'] = score
+        
+        # Add fit category and details for UI
+        if score >= 90:
+            data['fit_category'] = 'Excellent'
+            data['fit_details'] = 'Perfect fit with proper toe room'
+        elif score >= 75:
+            data['fit_category'] = 'Good'
+            data['fit_details'] = 'Good fit with adequate comfort'
+        elif score >= 60:
+            data['fit_category'] = 'Fair'
+            data['fit_details'] = 'Acceptable fit, may need consideration'
+        else:
+            data['fit_category'] = 'Poor'
+            data['fit_details'] = 'Poor fit, not recommended'
+            
         result.append(data)
-    return Response(result)
+    
+    return Response({
+        'user_measurements': {
+            'length_inches': user_length,
+            'width_inches': user_width
+        },
+        'recommendations': result,
+        'total_analyzed': len(result),
+        'algorithm_version': 'real_measurements_v1'
+    })
   
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
