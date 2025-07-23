@@ -1,6 +1,4 @@
 "use client"
-
-import type React from "react"
 import { useState, useEffect } from "react"
 import {
   ShoppingBag,
@@ -173,7 +171,7 @@ export default function RecommendationsPage() {
 
     try {
       const token = localStorage.getItem("token")
-      
+
       // Get User Measurements - REAL API CALL
       let measurements = null
       try {
@@ -214,12 +212,12 @@ export default function RecommendationsPage() {
         if (recommendationsResponse.ok) {
           const recommendationsData = await recommendationsResponse.json()
           console.log("✅ Loaded real recommendations:", recommendationsData)
-          
+
           // The backend returns an object with recommendations array
-          const shoes = Array.isArray(recommendationsData) 
-            ? recommendationsData 
+          const shoes = Array.isArray(recommendationsData)
+            ? recommendationsData
             : recommendationsData.recommendations || []
-          
+
           setAllShoes(shoes)
           console.log(`Loaded ${shoes.length} real shoe recommendations`)
         } else {
@@ -356,19 +354,19 @@ export default function RecommendationsPage() {
     if (shoe.image_url) {
       return shoe.image_url
     }
-    
+
     // Fallback to shoe_image field if available
     if (shoe.shoe_image) {
       // If it's a full URL, use it directly
-      if (shoe.shoe_image.startsWith('http')) {
+      if (shoe.shoe_image.startsWith("http")) {
         return shoe.shoe_image
       }
       // If it's a relative path, prepend the API base URL
       return `${API_BASE_URL}${shoe.shoe_image}`
     }
-    
+
     // Final fallback to placeholder
-    return `/placeholder.svg?height=200&width=200&text=${encodeURIComponent(shoe.company + ' ' + shoe.model)}`
+    return `/placeholder.svg?height=200&width=200&text=${encodeURIComponent(shoe.company + " " + shoe.model)}`
   }
 
   // Get fit score color
@@ -478,11 +476,11 @@ export default function RecommendationsPage() {
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="text-blue-700">Length:</span>
-                    <span className="font-mono ml-2">{userMeasurements.length_inches}"</span>
+                    <span className="font-mono ml-2 text-gray-900">{userMeasurements.length_inches}"</span>
                   </div>
                   <div>
                     <span className="text-blue-700">Width:</span>
-                    <span className="font-mono ml-2">{userMeasurements.width_inches}"</span>
+                    <span className="font-mono ml-2 text-gray-900">{userMeasurements.width_inches}"</span>
                   </div>
                 </div>
               </div>
@@ -499,7 +497,7 @@ export default function RecommendationsPage() {
             </div>
             <p className="mt-1">{error}</p>
             {error.includes("upload a foot image") && (
-              <button 
+              <button
                 onClick={() => router.push("/upload")}
                 className="mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
               >
@@ -517,7 +515,7 @@ export default function RecommendationsPage() {
             <p className="text-gray-600 mb-4">
               Please upload a photo of your foot on a piece of paper to get personalized shoe recommendations.
             </p>
-            <button 
+            <button
               onClick={() => router.push("/upload")}
               className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
@@ -535,20 +533,17 @@ export default function RecommendationsPage() {
                 onClick={() => setShowFilters(!showFilters)}
                 className="flex items-center space-x-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
               >
-                <SlidersHorizontal className="h-4 w-4" />
-                <span>Filters</span>
+                <SlidersHorizontal className="h-4 w-4 text-gray-700" />
+                <span className="text-gray-700">Filters</span>
                 {getActiveFiltersCount() > 0 && (
                   <span className="bg-blue-600 text-white text-xs rounded-full px-2 py-1">
                     {getActiveFiltersCount()}
                   </span>
                 )}
               </button>
-              
+
               {getActiveFiltersCount() > 0 && (
-                <button
-                  onClick={clearAllFilters}
-                  className="text-blue-600 hover:text-blue-700 text-sm"
-                >
+                <button onClick={clearAllFilters} className="text-blue-600 hover:text-blue-700 text-sm font-medium">
                   Clear all
                 </button>
               )}
@@ -560,7 +555,7 @@ export default function RecommendationsPage() {
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as "fit_score" | "price_low" | "price_high")}
-                className="border border-gray-300 rounded-lg px-3 py-2 bg-white text-sm"
+                className="border border-gray-300 rounded-lg px-3 py-2 bg-white text-sm text-gray-900"
               >
                 <option value="fit_score">Best Fit</option>
                 <option value="price_low">Price: Low to High</option>
@@ -681,59 +676,64 @@ export default function RecommendationsPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {filteredShoes.map((shoe) => (
-                    <div key={shoe.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                    <div
+                      key={shoe.id}
+                      className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+                    >
                       <div className="aspect-square relative bg-gray-50">
                         <img
-                          src={getShoeImageUrl(shoe)}
+                          src={getShoeImageUrl(shoe) || "/placeholder.svg"}
                           alt={`${shoe.company} ${shoe.model}`}
                           className="w-full h-full object-cover"
                           onError={(e) => {
                             // Fallback if image fails to load
-                            e.currentTarget.src = `/placeholder.svg?height=200&width=200&text=${encodeURIComponent(shoe.company + ' ' + shoe.model)}`
+                            e.currentTarget.src = `/placeholder.svg?height=200&width=200&text=${encodeURIComponent(shoe.company + " " + shoe.model)}`
                           }}
                         />
                         {shoe.fit_score && (
-                          <div className={`absolute top-3 left-3 px-2 py-1 rounded-full text-xs font-medium ${getFitScoreColor(shoe.fit_score)}`}>
+                          <div
+                            className={`absolute top-3 left-3 px-2 py-1 rounded-full text-xs font-medium ${getFitScoreColor(shoe.fit_score)}`}
+                          >
                             {shoe.fit_score}% fit
                           </div>
                         )}
                       </div>
-                      
+
                       <div className="p-4">
                         <div className="mb-2">
                           <h3 className="font-semibold text-gray-900">{shoe.company}</h3>
                           <p className="text-gray-600 text-sm">{shoe.model}</p>
                         </div>
-                        
+
                         <div className="flex items-center justify-between mb-3">
                           <span className="text-lg font-bold text-gray-900">${shoe.price_usd}</span>
                           <div className="text-sm text-gray-500">
                             Size {shoe.us_size} {shoe.width_category}
                           </div>
                         </div>
-                        
+
                         {shoe.fit_score && (
                           <div className="mb-3">
                             <div className="flex items-center justify-between text-sm mb-1">
                               <span className="text-gray-700">Fit Score</span>
-                              <span className={`font-medium ${getFitScoreColor(shoe.fit_score).split(' ')[0]}`}>
+                              <span className={`font-medium ${getFitScoreColor(shoe.fit_score).split(" ")[0]}`}>
                                 {getFitScoreLabel(shoe.fit_score)}
                               </span>
                             </div>
                             <div className="w-full bg-gray-200 rounded-full h-2">
                               <div
-                                className={`h-2 rounded-full ${shoe.fit_score >= 90 ? 'bg-green-500' : shoe.fit_score >= 75 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                                className={`h-2 rounded-full ${shoe.fit_score >= 90 ? "bg-green-500" : shoe.fit_score >= 75 ? "bg-yellow-500" : "bg-red-500"}`}
                                 style={{ width: `${shoe.fit_score}%` }}
                               ></div>
                             </div>
                           </div>
                         )}
-                        
+
                         <div className="flex items-center justify-between text-sm text-gray-600 mb-3">
                           <span className="px-2 py-1 bg-gray-100 rounded text-xs">{shoe.function}</span>
                           <span>{shoe.gender === "M" ? "Men's" : shoe.gender === "W" ? "Women's" : "Unisex"}</span>
                         </div>
-                        
+
                         <a
                           href={shoe.product_url}
                           target="_blank"
