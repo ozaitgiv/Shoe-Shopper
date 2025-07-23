@@ -215,9 +215,13 @@ export default function RecommendationsPage() {
           const recommendationsData = await recommendationsResponse.json()
           console.log("✅ Loaded real recommendations:", recommendationsData)
           
-          // The backend returns an array of shoes with fit_score already calculated
-          setAllShoes(recommendationsData)
-          console.log(`Loaded ${recommendationsData.length} real shoe recommendations`)
+          // The backend returns an object with recommendations array
+          const shoes = Array.isArray(recommendationsData) 
+            ? recommendationsData 
+            : recommendationsData.recommendations || []
+          
+          setAllShoes(shoes)
+          console.log(`Loaded ${shoes.length} real shoe recommendations`)
         } else {
           throw new Error(`Failed to load recommendations: ${recommendationsResponse.status}`)
         }
