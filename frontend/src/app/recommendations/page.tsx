@@ -1,18 +1,19 @@
 "use client"
+
+import type React from "react"
 import { useState, useEffect } from "react"
 import {
   ShoppingBag,
   User,
   LogOut,
   ChevronDown,
-  ExternalLink,
   ArrowLeft,
-  Ruler,
-  DollarSign,
-  Package,
-  Star,
+  SlidersHorizontal,
   Filter,
-  X,
+  AlertCircle,
+  Camera,
+  ExternalLink,
+  Ruler,
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -20,6 +21,7 @@ import Link from "next/link"
 // API configuration
 const API_BASE_URL = "https://shoeshopper.onrender.com"
 
+// Options for filters
 const GENDER_OPTIONS = ["Men", "Women", "Unisex"]
 const BRAND_OPTIONS = [
   "Adidas",
@@ -27,9 +29,7 @@ const BRAND_OPTIONS = [
   "Altra",
   "Converse",
   "Danner",
-  "Doc Marten",
   "Hoka",
-  "Muji",
   "New Balance",
   "Nike",
   "On Cloud",
@@ -37,15 +37,14 @@ const BRAND_OPTIONS = [
   "Saucony",
   "Solomon",
   "Thursday",
-  "Vivobarefoot",
 ]
 const FUNCTION_OPTIONS = ["Casual", "Hiking", "Work", "Running"]
 
 interface AppUser {
   id: number
   username: string
-  first_name: string
-  last_name: string
+  first_name?: string
+  last_name?: string
   email: string
 }
 
@@ -61,7 +60,12 @@ interface Shoe {
   product_url: string
   is_active: boolean
   fit_score?: number
+  shoe_image?: string
   image_url?: string
+  insole_length?: number
+  insole_width?: number
+  insole_perimeter?: number
+  insole_area?: number
 }
 
 interface UserMeasurements {
@@ -76,14 +80,13 @@ interface UserPreferences {
   maxPrice: number
 }
 
-
 export default function RecommendationsPage() {
   const router = useRouter()
   const [user, setUser] = useState<AppUser | null>(null)
   const [showDropdown, setShowDropdown] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
-  const [allShoes, setAllShoes] = useState<Shoe[]>([]) // All shoes from "backend"
-  const [filteredShoes, setFilteredShoes] = useState<Shoe[]>([]) // Filtered and sorted shoes
+  const [allShoes, setAllShoes] = useState<Shoe[]>([])
+  const [filteredShoes, setFilteredShoes] = useState<Shoe[]>([])
   const [userMeasurements, setUserMeasurements] = useState<UserMeasurements | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState<"fit_score" | "price_low" | "price_high">("fit_score")
@@ -97,41 +100,66 @@ export default function RecommendationsPage() {
     maxPrice: 1000,
   })
 
-useEffect(() => {
-  const init = async () => {
+  // Check authentication and get user info
+  useEffect(() => {
+    checkAuth()
+  }, [])
+
+  // Load preferences and shoes when user is authenticated
+  useEffect(() => {
+    if (user) {
+      loadSavedPreferences()
+      loadAllShoes()
+    }
+  }, [user])
+
+  // Apply filters and sorting whenever preferences, sorting, or shoes change
+  useEffect(() => {
+    applyFiltersAndSorting()
+  }, [allShoes, preferences, sortBy])
+
+  const loadSavedPreferences = () => {
+    try {
+      const savedPreferences = localStorage.getItem("userPreferences")
+      if (savedPreferences) {
+        const prefs = JSON.parse(savedPreferences)
+        setPreferences(prefs)
+      }
+    } catch (error) {
+      console.error("Error loading saved preferences:", error)
+    }
+  }
+
+  const savePreferences = (newPreferences: UserPreferences) => {
+    try {
+      localStorage.setItem("userPreferences", JSON.stringify(newPreferences))
+      setPreferences(newPreferences)
+    } catch (error) {
+      console.error("Error saving preferences:", error)
+    }
+  }
+
+  const checkAuth = async () => {
     const token = localStorage.getItem("token")
     if (!token) {
       router.push("/")
       return
     }
-
     try {
-      // Check authentication
-      const authRes = await fetch(`${API_BASE_URL}/api/auth/user/`, {
+      const response = await fetch(`${API_BASE_URL}/api/auth/user/`, {
         headers: {
           Authorization: `Token ${token}`,
         },
       })
-
-      if (!authRes.ok) {
+      if (response.ok) {
+        const userData = await response.json()
+        setUser(userData)
+      } else {
         localStorage.removeItem("token")
         router.push("/")
-        return
       }
-
-      const userData = await authRes.json()
-      setUser(userData)
-
-      // Load preferences
-      const savedPreferences = localStorage.getItem("userPreferences")
-      if (savedPreferences) {
-        setPreferences(JSON.parse(savedPreferences))
-      }
-
-      // Load shoes and measurements
-      await loadAllShoes(token)
-    } catch (err) {
-      console.error("Initialization failed:", err)
+    } catch (error) {
+      console.error("Auth check failed:", error)
       localStorage.removeItem("token")
       router.push("/")
     } finally {
@@ -139,49 +167,73 @@ useEffect(() => {
     }
   }
 
-  init()
-}, [])
+  const loadAllShoes = async () => {
+    setIsLoading(true)
+    setError(null)
 
+    try {
+      const token = localStorage.getItem("token")
+      
+      // Get User Measurements - REAL API CALL
+      let measurements = null
+      try {
+        const measurementsResponse = await fetch(`${API_BASE_URL}/api/measurements/latest/`, {
+          headers: {
+            Authorization: `Token ${token}`,
+            "Content-Type": "application/json",
+          },
+        })
 
+        if (measurementsResponse.ok) {
+          measurements = await measurementsResponse.json()
+          setUserMeasurements({
+            length_inches: measurements.length_inches,
+            width_inches: measurements.width_inches,
+          })
+          console.log("✅ Loaded real user measurements:", measurements)
+        } else {
+          console.warn("No user measurements found, user needs to upload foot image first")
+          setError("Please upload a foot image first to get personalized recommendations")
+          return
+        }
+      } catch (error) {
+        console.error("Could not load user measurements:", error)
+        setError("Failed to load your foot measurements. Please upload a foot image first.")
+        return
+      }
 
-const loadAllShoes = async (token: string) => {
-  try {
-    // Get latest measurements
-    const measurementsRes = await fetch(`${API_BASE_URL}/api/measurements/latest/`, {
-      headers: {
-        Authorization: `Token ${token}`,
-      },
-    })
+      // Load recommendations from backend - REAL API CALL
+      try {
+        const recommendationsResponse = await fetch(`${API_BASE_URL}/api/recommendations/`, {
+          headers: {
+            Authorization: `Token ${token}`,
+            "Content-Type": "application/json",
+          },
+        })
 
-    if (measurementsRes.ok) {
-      const data = await measurementsRes.json()
-      setUserMeasurements({
-        length_inches: data.length_inches,
-        width_inches: data.width_inches,
-      })
+        if (recommendationsResponse.ok) {
+          const recommendationsData = await recommendationsResponse.json()
+          console.log("✅ Loaded real recommendations:", recommendationsData)
+          
+          // The backend returns an array of shoes with fit_score already calculated
+          setAllShoes(recommendationsData)
+          console.log(`Loaded ${recommendationsData.length} real shoe recommendations`)
+        } else {
+          throw new Error(`Failed to load recommendations: ${recommendationsResponse.status}`)
+        }
+      } catch (recommendationsError) {
+        console.error("Failed to load recommendations from backend:", recommendationsError)
+        setError("Failed to load shoe recommendations. Please try again later.")
+        setAllShoes([]) // Clear any existing data
+      }
+    } catch (error) {
+      console.error("Failed to load data:", error)
+      setError(error instanceof Error ? error.message : "Failed to load shoe recommendations. Please try again later.")
+      setAllShoes([]) // Clear any existing data
+    } finally {
+      setIsLoading(false)
     }
-
-    // Get recommended shoes
-    const shoesRes = await fetch(`${API_BASE_URL}/api/recommendations/`, {
-      headers: {
-        Authorization: `Token ${token}`,
-      },
-    })
-
-    if (shoesRes.ok) {
-      const data = await shoesRes.json()
-      setAllShoes(data.shoes || [])
-    } else {
-      throw new Error(`Failed to load shoes: ${shoesRes.status}`)
-    }
-  } catch (err) {
-    console.error("Failed to load shoes or measurements:", err)
-    setError("Failed to load recommendations. Please try again.")
   }
-}
-
-
-
 
   const applyFiltersAndSorting = () => {
     let filtered = [...allShoes]
@@ -246,15 +298,6 @@ const loadAllShoes = async (token: string) => {
     }
   }
 
-  const savePreferences = (newPreferences: UserPreferences) => {
-  try {
-    localStorage.setItem("userPreferences", JSON.stringify(newPreferences))
-    setPreferences(newPreferences)
-  } catch (error) {
-    console.error("Error saving preferences:", error)
-  }
-}
-
   const handleFilterChange = (category: keyof UserPreferences, value: string) => {
     if (category === "maxPrice") return
 
@@ -303,20 +346,35 @@ const loadAllShoes = async (token: string) => {
     return user.username
   }
 
+  // Get shoe image URL with proper fallback
+  const getShoeImageUrl = (shoe: Shoe) => {
+    // Use shoe_image from backend if available
+    if (shoe.shoe_image) {
+      // If it's a full URL, use it directly
+      if (shoe.shoe_image.startsWith('http')) {
+        return shoe.shoe_image
+      }
+      // If it's a relative path, prepend the API base URL
+      return `${API_BASE_URL}${shoe.shoe_image}`
+    }
+    
+    // Fallback to placeholder
+    return `/placeholder.svg?height=200&width=200&text=${encodeURIComponent(shoe.company + ' ' + shoe.model)}`
+  }
+
+  // Get fit score color
   const getFitScoreColor = (score: number) => {
-    if (score >= 90) return "text-green-600 bg-green-100"
-    if (score >= 80) return "text-yellow-600 bg-yellow-100"
-    return "text-red-600 bg-red-100"
+    if (score >= 90) return "text-green-600 bg-green-50"
+    if (score >= 75) return "text-yellow-600 bg-yellow-50"
+    return "text-red-600 bg-red-50"
   }
 
-  const getWidthLabel = (width: string) => {
-    const widthMap = { N: "Narrow", D: "Regular", W: "Wide" }
-    return widthMap[width as keyof typeof widthMap] || width
-  }
-
-  const getGenderLabel = (gender: string) => {
-    const genderMap = { M: "Men", W: "Women", U: "Unisex" }
-    return genderMap[gender as keyof typeof genderMap] || gender
+  // Get fit score label
+  const getFitScoreLabel = (score: number) => {
+    if (score >= 90) return "Excellent Fit"
+    if (score >= 75) return "Good Fit"
+    if (score >= 60) return "Fair Fit"
+    return "Poor Fit"
   }
 
   if (isLoading) {
@@ -336,21 +394,18 @@ const loadAllShoes = async (token: string) => {
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2">
-                <ShoppingBag className="h-8 w-8 text-blue-600" />
-                <h1 className="text-xl font-bold text-gray-900">Shoe Shopper</h1>
-              </div>
+            <div className="flex items-center space-x-2">
+              <ShoppingBag className="h-6 w-6 text-blue-600" />
+              <span className="font-semibold text-gray-900">Shoe Shopper</span>
             </div>
 
-            {/* User Dropdown */}
+            {/* User dropdown */}
             <div className="relative">
               <button
                 onClick={() => setShowDropdown(!showDropdown)}
-                className="flex items-center space-x-2 p-2 rounded-full hover:bg-gray-100 transition-colors"
-                aria-label="User menu"
+                className="flex items-center space-x-2 px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 transition-colors"
               >
-                <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-medium">
                   {getUserInitials()}
                 </div>
                 <ChevronDown className="h-4 w-4 text-gray-500" />
@@ -406,19 +461,19 @@ const loadAllShoes = async (token: string) => {
             </div>
 
             {userMeasurements && (
-              <div className="bg-white rounded-lg border border-gray-200 p-4">
-                <div className="flex items-center space-x-2 mb-2">
-                  <Ruler className="h-4 w-4 text-gray-500" />
-                  <span className="text-sm font-medium text-gray-900">Your Measurements</span>
-                </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h3 className="font-semibold text-blue-900 mb-2 flex items-center">
+                  <Ruler className="h-4 w-4 mr-2" />
+                  Your Foot Measurements
+                </h3>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <span className="text-gray-600">Length:</span>
-                    <span className="ml-2 font-medium text-gray-900">{userMeasurements.length_inches}"</span>
+                    <span className="text-blue-700">Length:</span>
+                    <span className="font-mono ml-2">{userMeasurements.length_inches}"</span>
                   </div>
                   <div>
-                    <span className="text-gray-600">Width:</span>
-                    <span className="ml-2 font-medium text-gray-900">{userMeasurements.width_inches}"</span>
+                    <span className="text-blue-700">Width:</span>
+                    <span className="font-mono ml-2">{userMeasurements.width_inches}"</span>
                   </div>
                 </div>
               </div>
@@ -426,335 +481,268 @@ const loadAllShoes = async (token: string) => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-8">
-          {/* Results Section */}
-          <div>
-            {/* Sort, Filter, and Results Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-              <div className="flex items-center space-x-4">
-                <p className="text-gray-600">
-                  Showing {filteredShoes.length} of {allShoes.length} shoes
-                  <span className="ml-2 text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-                    Frontend Filtering
-                  </span>
-                </p>
-
-                {/* Mobile Filter Button */}
-                <button
-                  onClick={() => setShowFilters(true)}
-                  className="sm:hidden flex items-center space-x-2 px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors text-gray-900"
-                >
-                  <Filter className="h-4 w-4 text-gray-900" />
-                  <span className="text-gray-900">Filters</span>
-                  {getActiveFiltersCount() > 0 && (
-                    <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded-full">
-                      {getActiveFiltersCount()}
-                    </span>
-                  )}
-                </button>
-              </div>
-
-              <div className="flex items-center space-x-4">
-                {/* Desktop Filter Button */}
-                <button
-                  onClick={() => setShowFilters(true)}
-                  className="hidden sm:flex items-center space-x-2 px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors text-gray-900"
-                >
-                  <Filter className="h-4 w-4 text-gray-900" />
-                  <span className="text-gray-900">Filters</span>
-                  {getActiveFiltersCount() > 0 && (
-                    <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded-full">
-                      {getActiveFiltersCount()}
-                    </span>
-                  )}
-                </button>
-
-                <div className="flex items-center space-x-2">
-                  <label htmlFor="sort-select" className="text-sm font-medium text-gray-700">
-                    Sort:
-                  </label>
-                  <select
-                    id="sort-select"
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-                    className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 bg-white"
-                  >
-                    <option value="fit_score">Best Fit</option>
-                    <option value="price_low">Price: Low to High</option>
-                    <option value="price_high">Price: High to Low</option>
-                  </select>
-                </div>
-              </div>
+        {/* Error Display */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg">
+            <div className="flex items-center space-x-2">
+              <AlertCircle className="h-5 w-5" />
+              <span className="font-medium">Error:</span>
             </div>
-
-            {/* Active Filters Display */}
-            {getActiveFiltersCount() > 0 && (
-              <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-sm font-medium text-blue-900">Active Filters</h4>
-                  <button onClick={clearAllFilters} className="text-sm text-blue-600 hover:text-blue-700">
-                    Clear All
-                  </button>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {preferences.gender.map((gender) => (
-                    <span
-                      key={gender}
-                      className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full"
-                    >
-                      {gender}
-                      <button onClick={() => handleFilterChange("gender", gender)} className="ml-1 hover:text-blue-600">
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  ))}
-                  {preferences.brand.map((brand) => (
-                    <span
-                      key={brand}
-                      className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full"
-                    >
-                      {brand}
-                      <button onClick={() => handleFilterChange("brand", brand)} className="ml-1 hover:text-blue-600">
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  ))}
-                  {preferences.function.map((func) => (
-                    <span
-                      key={func}
-                      className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full"
-                    >
-                      {func}
-                      <button onClick={() => handleFilterChange("function", func)} className="ml-1 hover:text-blue-600">
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  ))}
-                  {preferences.maxPrice < 1000 && (
-                    <span className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
-                      Under ${preferences.maxPrice}
-                      <button onClick={() => handlePriceChange(1000)} className="ml-1 hover:text-blue-600">
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  )}
-                </div>
-              </div>
+            <p className="mt-1">{error}</p>
+            {error.includes("upload a foot image") && (
+              <button 
+                onClick={() => router.push("/upload")}
+                className="mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                Upload Foot Image
+              </button>
             )}
+          </div>
+        )}
 
-            {error && (
-              <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <p className="text-yellow-800">
-                  <strong>Note:</strong> {error}
-                </p>
-              </div>
-            )}
+        {/* No measurements state */}
+        {!isLoading && !error && allShoes.length === 0 && !userMeasurements && (
+          <div className="text-center py-12">
+            <Camera className="h-16 w-16 mx-auto text-gray-400 mb-4" />
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">No Foot Measurements Found</h3>
+            <p className="text-gray-600 mb-4">
+              Please upload a photo of your foot on a piece of paper to get personalized shoe recommendations.
+            </p>
+            <button 
+              onClick={() => router.push("/upload")}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              Upload Foot Image
+            </button>
+          </div>
+        )}
 
-            {filteredShoes.length === 0 ? (
-              <div className="bg-white rounded-lg shadow border border-gray-200 p-8 text-center">
-                <Package className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No shoes match your filters</h3>
-                <p className="text-gray-600 mb-4">Try adjusting your preferences to see more results.</p>
+        {/* Controls */}
+        {allShoes.length > 0 && (
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
+            {/* Filter button */}
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className="flex items-center space-x-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+                <span>Filters</span>
+                {getActiveFiltersCount() > 0 && (
+                  <span className="bg-blue-600 text-white text-xs rounded-full px-2 py-1">
+                    {getActiveFiltersCount()}
+                  </span>
+                )}
+              </button>
+              
+              {getActiveFiltersCount() > 0 && (
                 <button
                   onClick={clearAllFilters}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
+                  className="text-blue-600 hover:text-blue-700 text-sm"
                 >
-                  Clear All Filters
+                  Clear all
                 </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredShoes.map((shoe) => (
-                  <div
-                    key={shoe.id}
-                    className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow"
-                  >
-                    {/* Shoe Image */}
-                    {shoe.image_url && (
-                      <div className="aspect-square bg-gray-50 flex items-center justify-center">
-                        <img
-                          src={shoe.image_url || "/placeholder.svg"}
-                          alt={`${shoe.company} ${shoe.model}`}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    )}
-
-                    <div className="p-6">
-                      <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <h3 className="text-lg font-semibold text-gray-900">
-                            {shoe.company} {shoe.model}
-                          </h3>
-                          <p className="text-sm text-gray-600">
-                            {getGenderLabel(shoe.gender)} • {shoe.function}
-                          </p>
-                        </div>
-                        {shoe.fit_score && (
-                          <div className="flex items-center space-x-1">
-                            <Star className="h-4 w-4 text-yellow-400 fill-current" />
-                            <div
-                              className={`px-2 py-1 rounded-full text-xs font-medium ${getFitScoreColor(shoe.fit_score)}`}
-                            >
-                              {shoe.fit_score}% fit
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
-                        <div>
-                          <span className="text-gray-600">Size:</span>
-                          <span className="ml-2 font-medium text-gray-900">US {shoe.us_size}</span>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">Width:</span>
-                          <span className="ml-2 font-medium text-gray-900">{getWidthLabel(shoe.width_category)}</span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-1">
-                          <DollarSign className="h-4 w-4 text-gray-500" />
-                          <span className="text-lg font-bold text-gray-900">${shoe.price_usd.toFixed(2)}</span>
-                        </div>
-                        <a
-                          href={shoe.product_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
-                        >
-                          <span>View Product</span>
-                          <ExternalLink className="h-4 w-4" />
-                        </a>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Filter Modal */}
-      {showFilters && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          {/* Background overlay */}
-          <div
-            className="absolute inset-0"
-            style={{ backgroundColor: "rgba(0, 0, 0, 0.3)" }}
-            onClick={() => setShowFilters(false)}
-          ></div>
-
-          {/* Modal content */}
-          <div className="relative bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">Filter Shoes</h3>
-                <button onClick={() => setShowFilters(false)} className="text-gray-400 hover:text-gray-600">
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
+              )}
             </div>
 
-            <div className="p-6 space-y-6">
-              {/* Gender Filter */}
-              <div>
-                <h4 className="font-medium text-gray-900 mb-3">Gender</h4>
-                <div className="space-y-2">
-                  {GENDER_OPTIONS.map((option) => (
-                    <label key={option} className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={preferences.gender.includes(option)}
-                        onChange={() => handleFilterChange("gender", option)}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="ml-2 text-sm text-gray-700">{option}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
+            {/* Sort dropdown */}
+            <div className="flex items-center space-x-2">
+              <span className="text-sm text-gray-700">Sort by:</span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as "fit_score" | "price_low" | "price_high")}
+                className="border border-gray-300 rounded-lg px-3 py-2 bg-white text-sm"
+              >
+                <option value="fit_score">Best Fit</option>
+                <option value="price_low">Price: Low to High</option>
+                <option value="price_high">Price: High to Low</option>
+              </select>
+            </div>
+          </div>
+        )}
 
-              {/* Brand Filter */}
-              <div>
-                <h4 className="font-medium text-gray-900 mb-3">Brand</h4>
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {BRAND_OPTIONS.map((option) => (
-                    <label key={option} className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={preferences.brand.includes(option)}
-                        onChange={() => handleFilterChange("brand", option)}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="ml-2 text-sm text-gray-700">{option}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
+        <div className="flex gap-8">
+          {/* Filters Sidebar */}
+          {showFilters && allShoes.length > 0 && (
+            <div className="w-72 flex-shrink-0">
+              <div className="bg-white border border-gray-200 rounded-lg p-6 sticky top-8">
+                <h3 className="font-semibold text-gray-900 mb-4 flex items-center">
+                  <Filter className="h-4 w-4 mr-2" />
+                  Filters
+                </h3>
 
-              {/* Function Filter */}
-              <div>
-                <h4 className="font-medium text-gray-900 mb-3">Function</h4>
-                <div className="space-y-2">
-                  {FUNCTION_OPTIONS.map((option) => (
-                    <label key={option} className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={preferences.function.includes(option)}
-                        onChange={() => handleFilterChange("function", option)}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="ml-2 text-sm text-gray-700">{option}</span>
-                    </label>
-                  ))}
+                {/* Gender Filter */}
+                <div className="mb-6">
+                  <h4 className="font-medium text-gray-900 mb-3">Gender</h4>
+                  <div className="space-y-2">
+                    {GENDER_OPTIONS.map((option) => (
+                      <label key={option} className="flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={preferences.gender.includes(option)}
+                          onChange={() => handleFilterChange("gender", option)}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="ml-2 text-sm text-gray-700">{option}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
-              </div>
 
-              {/* Max Price Filter */}
-              <div>
-                <h4 className="font-medium text-gray-900 mb-3">Max Price</h4>
-                <div className="space-y-3">
+                {/* Brand Filter */}
+                <div className="mb-6">
+                  <h4 className="font-medium text-gray-900 mb-3">Brand</h4>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {BRAND_OPTIONS.map((option) => (
+                      <label key={option} className="flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={preferences.brand.includes(option)}
+                          onChange={() => handleFilterChange("brand", option)}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="ml-2 text-sm text-gray-700">{option}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Function Filter */}
+                <div className="mb-6">
+                  <h4 className="font-medium text-gray-900 mb-3">Function</h4>
+                  <div className="space-y-2">
+                    {FUNCTION_OPTIONS.map((option) => (
+                      <label key={option} className="flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={preferences.function.includes(option)}
+                          onChange={() => handleFilterChange("function", option)}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="ml-2 text-sm text-gray-700">{option}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Price Filter */}
+                <div className="mb-6">
+                  <h4 className="font-medium text-gray-900 mb-3">Max Price</h4>
                   <input
                     type="range"
-                    min="0"
+                    min="50"
                     max="1000"
                     step="25"
                     value={preferences.maxPrice}
-                    onChange={(e) => handlePriceChange(Number.parseInt(e.target.value))}
-                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                    onChange={(e) => handlePriceChange(Number(e.target.value))}
+                    className="w-full"
                   />
-                  <div className="flex justify-between items-center text-sm text-gray-500">
-                    <span>$0</span>
-                    <div className="text-center">
-                      <span className="font-medium text-gray-900 text-base">${preferences.maxPrice}</span>
-                      <div className="text-xs text-gray-500">Current</div>
-                    </div>
+                  <div className="flex justify-between text-sm text-gray-500 mt-1">
+                    <span>$50</span>
+                    <span className="font-medium">${preferences.maxPrice}</span>
                     <span>$1000+</span>
                   </div>
                 </div>
               </div>
             </div>
+          )}
 
-            <div className="px-6 py-4 border-t border-gray-200 flex space-x-3">
-              <button
-                onClick={clearAllFilters}
-                className="flex-1 border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-md font-medium transition-colors"
-              >
-                Clear All
-              </button>
-              <button
-                onClick={() => setShowFilters(false)}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
-              >
-                Apply Filters
-              </button>
-            </div>
+          {/* Results */}
+          <div className="flex-1">
+            {filteredShoes.length === 0 && allShoes.length > 0 && (
+              <div className="text-center py-12">
+                <p className="text-gray-600 mb-4">No shoes match your current filters.</p>
+                <button
+                  onClick={clearAllFilters}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Clear Filters
+                </button>
+              </div>
+            )}
+
+            {filteredShoes.length > 0 && (
+              <>
+                <div className="flex items-center justify-between mb-6">
+                  <p className="text-gray-600">
+                    Showing {filteredShoes.length} shoe{filteredShoes.length !== 1 ? "s" : ""}
+                    {allShoes.length !== filteredShoes.length && ` of ${allShoes.length}`}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredShoes.map((shoe) => (
+                    <div key={shoe.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                      <div className="aspect-square relative bg-gray-50">
+                        <img
+                          src={getShoeImageUrl(shoe)}
+                          alt={`${shoe.company} ${shoe.model}`}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            // Fallback if image fails to load
+                            e.currentTarget.src = `/placeholder.svg?height=200&width=200&text=${encodeURIComponent(shoe.company + ' ' + shoe.model)}`
+                          }}
+                        />
+                        {shoe.fit_score && (
+                          <div className={`absolute top-3 left-3 px-2 py-1 rounded-full text-xs font-medium ${getFitScoreColor(shoe.fit_score)}`}>
+                            {shoe.fit_score}% fit
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="p-4">
+                        <div className="mb-2">
+                          <h3 className="font-semibold text-gray-900">{shoe.company}</h3>
+                          <p className="text-gray-600 text-sm">{shoe.model}</p>
+                        </div>
+                        
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-lg font-bold text-gray-900">${shoe.price_usd}</span>
+                          <div className="text-sm text-gray-500">
+                            Size {shoe.us_size} {shoe.width_category}
+                          </div>
+                        </div>
+                        
+                        {shoe.fit_score && (
+                          <div className="mb-3">
+                            <div className="flex items-center justify-between text-sm mb-1">
+                              <span className="text-gray-700">Fit Score</span>
+                              <span className={`font-medium ${getFitScoreColor(shoe.fit_score).split(' ')[0]}`}>
+                                {getFitScoreLabel(shoe.fit_score)}
+                              </span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div
+                                className={`h-2 rounded-full ${shoe.fit_score >= 90 ? 'bg-green-500' : shoe.fit_score >= 75 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                                style={{ width: `${shoe.fit_score}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        )}
+                        
+                        <div className="flex items-center justify-between text-sm text-gray-600 mb-3">
+                          <span className="px-2 py-1 bg-gray-100 rounded text-xs">{shoe.function}</span>
+                          <span>{shoe.gender === "M" ? "Men's" : shoe.gender === "W" ? "Women's" : "Unisex"}</span>
+                        </div>
+                        
+                        <a
+                          href={shoe.product_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-center w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                        >
+                          <span>View Product</span>
+                          <ExternalLink className="h-3 w-3 ml-1" />
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </div>
-      )}
+      </div>
     </div>
   )
 }
