@@ -76,345 +76,6 @@ interface UserPreferences {
   maxPrice: number
 }
 
-// EXPANDED MOCK DATA for better filtering demonstration
-const MOCK_USER_MEASUREMENTS: UserMeasurements = {
-  length_inches: 10.5,
-  width_inches: 4.2,
-}
-
-const ALL_MOCK_SHOES: Shoe[] = [
-  // Nike shoes
-  {
-    id: 1,
-    company: "Nike",
-    model: "Air Max 270",
-    gender: "M",
-    us_size: 10.5,
-    width_category: "D",
-    function: "Running",
-    price_usd: 150.0,
-    product_url: "https://nike.com/air-max-270",
-    is_active: true,
-    fit_score: 95,
-    image_url: "/placeholder.svg?height=200&width=200&text=Nike+Air+Max+270",
-  },
-  {
-    id: 2,
-    company: "Nike",
-    model: "Air Force 1",
-    gender: "U",
-    us_size: 10.5,
-    width_category: "D",
-    function: "Casual",
-    price_usd: 90.0,
-    product_url: "https://nike.com/air-force-1",
-    is_active: true,
-    fit_score: 88,
-    image_url: "/placeholder.svg?height=200&width=200&text=Nike+Air+Force+1",
-  },
-  {
-    id: 3,
-    company: "Nike",
-    model: "Pegasus 40",
-    gender: "W",
-    us_size: 10.5,
-    width_category: "D",
-    function: "Running",
-    price_usd: 130.0,
-    product_url: "https://nike.com/pegasus-40",
-    is_active: true,
-    fit_score: 91,
-    image_url: "/placeholder.svg?height=200&width=200&text=Nike+Pegasus+40",
-  },
-
-  // Adidas shoes
-  {
-    id: 4,
-    company: "Adidas",
-    model: "Ultraboost 22",
-    gender: "M",
-    us_size: 10.5,
-    width_category: "D",
-    function: "Running",
-    price_usd: 180.0,
-    product_url: "https://adidas.com/ultraboost-22",
-    is_active: true,
-    fit_score: 92,
-    image_url: "/placeholder.svg?height=200&width=200&text=Adidas+Ultraboost",
-  },
-  {
-    id: 5,
-    company: "Adidas",
-    model: "Stan Smith",
-    gender: "U",
-    us_size: 10.5,
-    width_category: "D",
-    function: "Casual",
-    price_usd: 80.0,
-    product_url: "https://adidas.com/stan-smith",
-    is_active: true,
-    fit_score: 85,
-    image_url: "/placeholder.svg?height=200&width=200&text=Adidas+Stan+Smith",
-  },
-
-  // New Balance shoes
-  {
-    id: 6,
-    company: "New Balance",
-    model: "Fresh Foam X 1080v12",
-    gender: "M",
-    us_size: 10.5,
-    width_category: "D",
-    function: "Running",
-    price_usd: 160.0,
-    product_url: "https://newbalance.com/1080v12",
-    is_active: true,
-    fit_score: 89,
-    image_url: "/placeholder.svg?height=200&width=200&text=New+Balance+1080",
-  },
-  {
-    id: 7,
-    company: "New Balance",
-    model: "990v5",
-    gender: "U",
-    us_size: 10.5,
-    width_category: "D",
-    function: "Casual",
-    price_usd: 185.0,
-    product_url: "https://newbalance.com/990v5",
-    is_active: true,
-    fit_score: 87,
-    image_url: "/placeholder.svg?height=200&width=200&text=New+Balance+990v5",
-  },
-
-  // Allbirds shoes
-  {
-    id: 8,
-    company: "Allbirds",
-    model: "Tree Runners",
-    gender: "U",
-    us_size: 10.5,
-    width_category: "D",
-    function: "Casual",
-    price_usd: 98.0,
-    product_url: "https://allbirds.com/tree-runners",
-    is_active: true,
-    fit_score: 87,
-    image_url: "/placeholder.svg?height=200&width=200&text=Allbirds+Tree+Runners",
-  },
-  {
-    id: 9,
-    company: "Allbirds",
-    model: "Tree Dashers",
-    gender: "M",
-    us_size: 10.5,
-    width_category: "D",
-    function: "Running",
-    price_usd: 125.0,
-    product_url: "https://allbirds.com/tree-dashers",
-    is_active: true,
-    fit_score: 84,
-    image_url: "/placeholder.svg?height=200&width=200&text=Allbirds+Tree+Dashers",
-  },
-
-  // Hoka shoes
-  {
-    id: 10,
-    company: "Hoka",
-    model: "Clifton 9",
-    gender: "M",
-    us_size: 10.5,
-    width_category: "D",
-    function: "Running",
-    price_usd: 140.0,
-    product_url: "https://hoka.com/clifton-9",
-    is_active: true,
-    fit_score: 85,
-    image_url: "/placeholder.svg?height=200&width=200&text=Hoka+Clifton+9",
-  },
-  {
-    id: 11,
-    company: "Hoka",
-    model: "Bondi 8",
-    gender: "W",
-    us_size: 10.5,
-    width_category: "D",
-    function: "Running",
-    price_usd: 165.0,
-    product_url: "https://hoka.com/bondi-8",
-    is_active: true,
-    fit_score: 83,
-    image_url: "/placeholder.svg?height=200&width=200&text=Hoka+Bondi+8",
-  },
-
-  // On Cloud shoes
-  {
-    id: 12,
-    company: "On Cloud",
-    model: "Cloudstratus 3",
-    gender: "M",
-    us_size: 10.5,
-    width_category: "D",
-    function: "Running",
-    price_usd: 170.0,
-    product_url: "https://on-running.com/cloudstratus-3",
-    is_active: true,
-    fit_score: 83,
-    image_url: "/placeholder.svg?height=200&width=200&text=On+Cloud+Stratus",
-  },
-  {
-    id: 13,
-    company: "On Cloud",
-    model: "Cloud 5",
-    gender: "U",
-    us_size: 10.5,
-    width_category: "D",
-    function: "Casual",
-    price_usd: 140.0,
-    product_url: "https://on-running.com/cloud-5",
-    is_active: true,
-    fit_score: 81,
-    image_url: "/placeholder.svg?height=200&width=200&text=On+Cloud+5",
-  },
-
-  // Converse shoes
-  {
-    id: 14,
-    company: "Converse",
-    model: "Chuck Taylor All Star",
-    gender: "U",
-    us_size: 10.5,
-    width_category: "D",
-    function: "Casual",
-    price_usd: 55.0,
-    product_url: "https://converse.com/chuck-Taylor",
-    is_active: true,
-    fit_score: 75,
-    image_url: "/placeholder.svg?height=200&width=200&text=Converse+Chuck+Taylor",
-  },
-
-  // Puma shoes
-  {
-    id: 15,
-    company: "Puma",
-    model: "Suede Classic",
-    gender: "U",
-    us_size: 10.5,
-    width_category: "D",
-    function: "Casual",
-    price_usd: 70.0,
-    product_url: "https://puma.com/suede-classic",
-    is_active: true,
-    fit_score: 78,
-    image_url: "/placeholder.svg?height=200&width=200&text=Puma+Suede+Classic",
-  },
-  {
-    id: 16,
-    company: "Puma",
-    model: "Velocity Nitro 3",
-    gender: "M",
-    us_size: 10.5,
-    width_category: "D",
-    function: "Running",
-    price_usd: 110.0,
-    product_url: "https://puma.com/velocity-nitro-3",
-    is_active: true,
-    fit_score: 82,
-    image_url: "/placeholder.svg?height=200&width=200&text=Puma+Velocity+Nitro",
-  },
-
-  // Saucony shoes
-  {
-    id: 17,
-    company: "Saucony",
-    model: "Kinvara 14",
-    gender: "M",
-    us_size: 10.5,
-    width_category: "D",
-    function: "Running",
-    price_usd: 110.0,
-    product_url: "https://saucony.com/kinvara-14",
-    is_active: true,
-    fit_score: 86,
-    image_url: "/placeholder.svg?height=200&width=200&text=Saucony+Kinvara+14",
-  },
-
-  // Danner shoes (Work/Hiking)
-  {
-    id: 18,
-    company: "Danner",
-    model: "Mountain 600",
-    gender: "M",
-    us_size: 10.5,
-    width_category: "D",
-    function: "Hiking",
-    price_usd: 320.0,
-    product_url: "https://danner.com/mountain-600",
-    is_active: true,
-    fit_score: 79,
-    image_url: "/placeholder.svg?height=200&width=200&text=Danner+Mountain+600",
-  },
-  {
-    id: 19,
-    company: "Danner",
-    model: "Bull Run",
-    gender: "M",
-    us_size: 10.5,
-    width_category: "D",
-    function: "Work",
-    price_usd: 280.0,
-    product_url: "https://danner.com/bull-run",
-    is_active: true,
-    fit_score: 77,
-    image_url: "/placeholder.svg?height=200&width=200&text=Danner+Bull+Run",
-  },
-
-  // Thursday shoes (Work)
-  {
-    id: 20,
-    company: "Thursday",
-    model: "Captain Boot",
-    gender: "M",
-    us_size: 10.5,
-    width_category: "D",
-    function: "Work",
-    price_usd: 199.0,
-    product_url: "https://thursdayboots.com/captain",
-    is_active: true,
-    fit_score: 74,
-    image_url: "/placeholder.svg?height=200&width=200&text=Thursday+Captain+Boot",
-  },
-
-  // Higher priced items for price filtering
-  {
-    id: 21,
-    company: "Altra",
-    model: "Lone Peak 7",
-    gender: "U",
-    us_size: 10.5,
-    width_category: "W",
-    function: "Hiking",
-    price_usd: 140.0,
-    product_url: "https://altra.com/lone-peak-7",
-    is_active: true,
-    fit_score: 88,
-    image_url: "/placeholder.svg?height=200&width=200&text=Altra+Lone+Peak+7",
-  },
-  {
-    id: 22,
-    company: "Solomon",
-    model: "Speedcross 5",
-    gender: "M",
-    us_size: 10.5,
-    width_category: "D",
-    function: "Hiking",
-    price_usd: 130.0,
-    product_url: "https://salomon.com/speedcross-5",
-    is_active: true,
-    fit_score: 80,
-    image_url: "/placeholder.svg?height=200&width=200&text=Solomon+Speedcross+5",
-  },
-]
 
 export default function RecommendationsPage() {
   const router = useRouter()
@@ -436,66 +97,41 @@ export default function RecommendationsPage() {
     maxPrice: 1000,
   })
 
-  // Check authentication and get user info
-  useEffect(() => {
-    checkAuth()
-  }, [])
-
-  // Load preferences and shoes when user is authenticated
-  useEffect(() => {
-    if (user) {
-      loadSavedPreferences()
-      loadAllShoes()
-    }
-  }, [user])
-
-  // Apply filters and sorting whenever preferences, sorting, or shoes change
-  useEffect(() => {
-    applyFiltersAndSorting()
-  }, [allShoes, preferences, sortBy])
-
-  const loadSavedPreferences = () => {
-    try {
-      const savedPreferences = localStorage.getItem("userPreferences")
-      if (savedPreferences) {
-        const prefs = JSON.parse(savedPreferences)
-        setPreferences(prefs)
-      }
-    } catch (error) {
-      console.error("Error loading saved preferences:", error)
-    }
-  }
-
-  const savePreferences = (newPreferences: UserPreferences) => {
-    try {
-      localStorage.setItem("userPreferences", JSON.stringify(newPreferences))
-      setPreferences(newPreferences)
-    } catch (error) {
-      console.error("Error saving preferences:", error)
-    }
-  }
-
-  const checkAuth = async () => {
+useEffect(() => {
+  const init = async () => {
     const token = localStorage.getItem("token")
     if (!token) {
       router.push("/")
       return
     }
+
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/user/`, {
+      // Check authentication
+      const authRes = await fetch(`${API_BASE_URL}/api/auth/user/`, {
         headers: {
           Authorization: `Token ${token}`,
         },
       })
-      if (response.ok) {
-        const userData = await response.json()
-        setUser(userData)
-      } else {
+
+      if (!authRes.ok) {
         localStorage.removeItem("token")
         router.push("/")
+        return
       }
-    } catch (error) {
-      console.error("Auth check failed:", error)
+
+      const userData = await authRes.json()
+      setUser(userData)
+
+      // Load preferences
+      const savedPreferences = localStorage.getItem("userPreferences")
+      if (savedPreferences) {
+        setPreferences(JSON.parse(savedPreferences))
+      }
+
+      // Load shoes and measurements
+      await loadAllShoes(token)
+    } catch (err) {
+      console.error("Initialization failed:", err)
       localStorage.removeItem("token")
       router.push("/")
     } finally {
@@ -503,78 +139,49 @@ export default function RecommendationsPage() {
     }
   }
 
-  const loadAllShoes = async () => {
-    setIsLoading(true)
-    setError(null)
+  init()
+}, [])
 
-    try {
-      // Get User Measurements
-      let measurements = null
-      try {
-        // TODO: Uncomment when backend is ready
-        /*
-        const token = localStorage.getItem("token")
-        const measurementsResponse = await fetch(`${API_BASE_URL}/api/measurements/latest/`, {
-          headers: {
-            Authorization: `Token ${token}`,
-            "Content-Type": "application/json",
-          },
-        })
 
-        if (measurementsResponse.ok) {
-          measurements = await measurementsResponse.json()
-          setUserMeasurements({
-            length_inches: measurements.length_inches,
-            width_inches: measurements.width_inches,
-          })
-        }
-        */
 
-        // MOCK DATA - Remove when backend is ready
-        measurements = MOCK_USER_MEASUREMENTS
-        setUserMeasurements(measurements)
-      } catch (error) {
-        console.warn("Could not load user measurements:", error)
-      }
+const loadAllShoes = async (token: string) => {
+  try {
+    // Get latest measurements
+    const measurementsRes = await fetch(`${API_BASE_URL}/api/measurements/latest/`, {
+      headers: {
+        Authorization: `Token ${token}`,
+      },
+    })
 
-      // Load all shoes (simulating backend call)
-      try {
-        // TODO: Replace with actual backend call
-        /*
-        const token = localStorage.getItem("token")
-        const shoesResponse = await fetch(`${API_BASE_URL}/api/shoes/all/`, {
-          headers: {
-            Authorization: `Token ${token}`,
-            "Content-Type": "application/json",
-          },
-        })
-
-        if (shoesResponse.ok) {
-          const shoesData = await shoesResponse.json()
-          setAllShoes(shoesData.shoes || [])
-        } else {
-          throw new Error(`Failed to load shoes: ${shoesResponse.status}`)
-        }
-        */
-
-        // MOCK DATA - Using expanded shoe list
-        setAllShoes(ALL_MOCK_SHOES)
-      } catch (shoesError) {
-        console.warn("Failed to load shoes from backend, using mock data:", shoesError)
-        setAllShoes(ALL_MOCK_SHOES)
-        setError("Using demo data. Backend integration pending.")
-      }
-    } catch (error) {
-      console.error("Failed to load data:", error)
-      setError(error instanceof Error ? error.message : "Failed to load shoe recommendations. Please try again later.")
-
-      // FALLBACK: Use mock data even on error
-      setAllShoes(ALL_MOCK_SHOES)
-      setUserMeasurements(MOCK_USER_MEASUREMENTS)
-    } finally {
-      setIsLoading(false)
+    if (measurementsRes.ok) {
+      const data = await measurementsRes.json()
+      setUserMeasurements({
+        length_inches: data.length_inches,
+        width_inches: data.width_inches,
+      })
     }
+
+    // Get recommended shoes
+    const shoesRes = await fetch(`${API_BASE_URL}/api/recommendations/`, {
+      headers: {
+        Authorization: `Token ${token}`,
+      },
+    })
+
+    if (shoesRes.ok) {
+      const data = await shoesRes.json()
+      setAllShoes(data.shoes || [])
+    } else {
+      throw new Error(`Failed to load shoes: ${shoesRes.status}`)
+    }
+  } catch (err) {
+    console.error("Failed to load shoes or measurements:", err)
+    setError("Failed to load recommendations. Please try again.")
   }
+}
+
+
+
 
   const applyFiltersAndSorting = () => {
     let filtered = [...allShoes]
