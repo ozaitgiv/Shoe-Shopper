@@ -4,6 +4,31 @@ import logging
 from inference_sdk import InferenceHTTPClient
 
 logger = logging.getLogger(__name__)
+
+def cleanup_old_guest_sessions():
+    """Clean up guest sessions older than 7 days to prevent database bloat"""
+    from datetime import datetime, timedelta
+    from django.utils import timezone
+    
+    cutoff_date = timezone.now() - timedelta(days=7)
+    
+    try:
+        # Delete old guest foot images
+        old_guest_images = FootImage.objects.filter(
+            user__isnull=True,
+            error_message__startswith='GUEST_SESSION:',
+            uploaded_at__lt=cutoff_date
+        )
+        
+        count = old_guest_images.count()
+        old_guest_images.delete()
+        
+        logger.info(f"Cleaned up {count} old guest sessions")
+        return count
+    except Exception as e:
+        logger.error(f"Error cleaning up guest sessions: {str(e)}")
+        return 0
+
 from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.utils.decorators import method_decorator
 from django.http import JsonResponse
@@ -287,11 +312,37 @@ class FootImageUploadView(APIView):
             # Handle both authenticated users and guests
             user = request.user if request.user.is_authenticated else None
             
+            # For guests, ensure we have a session
+            guest_session_key = None
+            if not user:
+                if not request.session.session_key:
+                    request.session.create()
+                guest_session_key = request.session.session_key
+                logger.info("Guest session created/retrieved", extra={
+                    'session_key': guest_session_key[:8] + '...'  # Log partial key for debugging
+                })
+            
             serializer = FootImageSerializer(data=request.data)
             if serializer.is_valid():
                 logger.info("FootImage serializer validation successful")
                 instance = serializer.save(user=user)
-                logger.info("FootImage instance created", extra={'instance_id': instance.id})
+                
+                # For guests, store session key in error_message field temporarily
+                # This is a safe approach that doesn't require database schema changes
+                if guest_session_key:
+                    instance.error_message = f"GUEST_SESSION:{guest_session_key}"
+                    instance.save()
+                    
+                    # Occasionally cleanup old guest sessions (10% chance)
+                    import random
+                    if random.random() < 0.1:  # 10% chance
+                        cleanup_old_guest_sessions()
+                
+                logger.info("FootImage instance created", extra={
+                    'instance_id': instance.id,
+                    'is_guest': user is None,
+                    'has_session': guest_session_key is not None
+                })
                 
                 try:
                     image_path = instance.image.path
@@ -533,11 +584,23 @@ def recommendations(request):
             status='complete'
         ).order_by('-uploaded_at').first()
     else:
-        # For guests, get the most recent processed image
-        foot_image = FootImage.objects.filter(
-            user__isnull=True,
-            status='complete'
-        ).order_by('-uploaded_at').first()
+        # For guests, filter by session key to isolate their data
+        session_key = request.session.session_key
+        if not session_key:
+            # No session means no previous uploads
+            foot_image = None
+        else:
+            # Find guest images that belong to this session
+            foot_image = FootImage.objects.filter(
+                user__isnull=True,
+                status='complete',
+                error_message__startswith=f'GUEST_SESSION:{session_key}'
+            ).order_by('-uploaded_at').first()
+            
+        logger.info("Guest recommendations query", extra={
+            'session_key': session_key[:8] + '...' if session_key else None,
+            'found_image': foot_image is not None
+        })
     
     if not foot_image or foot_image.length_inches is None or foot_image.width_inches is None:
         return Response({
@@ -600,8 +663,16 @@ def get_latest_measurement(request):
         if request.user.is_authenticated:
             latest = FootImage.objects.filter(user=request.user, status='complete').order_by('-uploaded_at').first()
         else:
-            # For guests, get the most recent processed image
-            latest = FootImage.objects.filter(user__isnull=True, status='complete').order_by('-uploaded_at').first()
+            # For guests, filter by session key to isolate their data
+            session_key = request.session.session_key
+            if not session_key:
+                latest = None
+            else:
+                latest = FootImage.objects.filter(
+                    user__isnull=True,
+                    status='complete',
+                    error_message__startswith=f'GUEST_SESSION:{session_key}'
+                ).order_by('-uploaded_at').first()
         
         if not latest:
             return Response({"error": "No measurements found"}, status=status.HTTP_404_NOT_FOUND)

@@ -199,6 +199,7 @@ export default function RecommendationsPage() {
         
         const measurementsResponse = await fetch(`${API_BASE_URL}/api/measurements/latest/`, {
           headers,
+          credentials: "include", // Important: Include session cookies for guest isolation
         })
 
         if (measurementsResponse.ok) {
@@ -232,6 +233,7 @@ export default function RecommendationsPage() {
         
         const recommendationsResponse = await fetch(`${API_BASE_URL}/api/recommendations/`, {
           headers,
+          credentials: "include", // Important: Include session cookies for guest isolation
         })
 
         if (recommendationsResponse.ok) {
