@@ -1,6 +1,9 @@
 import os
+import logging
 
 from inference_sdk import InferenceHTTPClient
+
+logger = logging.getLogger(__name__)
 from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.utils.decorators import method_decorator
 from django.http import JsonResponse
@@ -274,55 +277,70 @@ class FootImageUploadView(APIView):
     permission_classes = [AllowAny]  # Allow guests without authentication
 
     def post(self, request, format=None):
-        print("Upload endpoint hit")
-        print("Request FILES:", request.FILES)
-        print("Request DATA:", request.data)
-        print("User authenticated:", request.user.is_authenticated)
+        logger.info("Foot image upload endpoint accessed", extra={
+            'user_authenticated': request.user.is_authenticated,
+            'user_id': request.user.id if request.user.is_authenticated else None,
+            'has_files': bool(request.FILES),
+        })
         
         try:
             # Handle both authenticated users and guests
             user = request.user if request.user.is_authenticated else None
-            print(f"User for save: {user}")
             
             serializer = FootImageSerializer(data=request.data)
             if serializer.is_valid():
-                print("Serializer is valid")
+                logger.info("FootImage serializer validation successful")
                 instance = serializer.save(user=user)
-                print(f"Instance created with ID: {instance.id}")
+                logger.info("FootImage instance created", extra={'instance_id': instance.id})
                 
                 try:
                     image_path = instance.image.path
-                    print(f"Image path: {image_path}")
                     
                     # Get paper size from request, default to 'letter'
                     paper_size = request.data.get('paper_size', 'letter')
-                    print(f"Using paper size: {paper_size}")
+                    logger.debug("Processing foot image", extra={
+                        'image_path': image_path,
+                        'paper_size': paper_size
+                    })
                     
                     length, width, error_msg = process_foot_image(image_path, paper_size)
                     if error_msg:
-                        print(f"Processing error: {error_msg}")
+                        logger.error("Foot image processing failed", extra={
+                            'instance_id': instance.id,
+                            'error_message': error_msg
+                        })
                         instance.status = 'error'
                         instance.error_message = error_msg
                     else:
-                        print(f"Processing success: {length}\" x {width}\"")
+                        logger.info("Foot image processing completed successfully", extra={
+                            'instance_id': instance.id,
+                            'length': length,
+                            'width': width
+                        })
                         instance.status = 'complete'
                         instance.length_inches = length
                         instance.width_inches = width
                     instance.save()
-                    print("Instance updated and saved")
                 except Exception as e:
-                    print(f"Processing exception: {str(e)}")
+                    logger.exception("Unexpected error during foot image processing", extra={
+                        'instance_id': instance.id,
+                        'error': str(e)
+                    })
                     instance.status = 'error'
                     instance.error_message = f"Unexpected error: {str(e)}"
                     instance.save()
 
                 return Response({ "measurement_id": instance.id }, status=status.HTTP_201_CREATED)
             else:
-                print(f"Serializer errors: {serializer.errors}")
+                logger.warning("FootImage serializer validation failed", extra={
+                    'errors': serializer.errors
+                })
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
                 
         except Exception as e:
-            print(f"Upload view exception: {str(e)}")
+            logger.exception("Unexpected error in upload view", extra={
+                'error': str(e)
+            })
             return Response({
                 "error": f"Server error: {str(e)}"
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -623,7 +641,10 @@ def delete_account(request):
 
     # Delete user and cascade to related FootImages
     request.user.delete()
-    print("DELETE account called")
+    logger.info("User account deleted successfully", extra={
+        'user_id': request.user.id,
+        'username': request.user.username
+    })
     return Response(
         {"message": "Account deleted successfully"}, 
         status=status.HTTP_200_OK
