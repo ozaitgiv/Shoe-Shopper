@@ -7,7 +7,7 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0007_replace_shoe_image_with_url'),
+        ('core', '0008_merge_migration_branches'),
     ]
 
     operations = [
