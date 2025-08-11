@@ -3,7 +3,6 @@ from django.contrib.auth.models import User
 
 class FootImage(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='foot_images', null=True, blank=True)  # Allow null for guests  
-    guest_session_id = models.CharField(max_length=40, null=True, blank=True, help_text="Session ID for guest users to isolate their data")
     image = models.ImageField(upload_to='foot_images/')
     uploaded_at = models.DateTimeField(auto_now_add=True)
     
@@ -20,8 +19,9 @@ class FootImage(models.Model):
     def __str__(self):
         if self.user:
             return f"FootImage {self.id} by {self.user.username}"
-        elif self.guest_session_id:
-            return f"FootImage {self.id} by Guest ({self.guest_session_id[:8]}...)"
+        elif self.error_message and self.error_message.startswith('GUEST_SESSION:'):
+            session_id = self.error_message.replace('GUEST_SESSION:', '')[:8]
+            return f"FootImage {self.id} by Guest ({session_id}...)"
         else:
             return f"FootImage {self.id} by Guest"
 
