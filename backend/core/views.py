@@ -21,7 +21,7 @@ from rest_framework.authtoken.models import Token
 from .models import FootImage, Shoe
 from .serializers import FootImageSerializer, ShoeSerializer
 
-def process_foot_image(image_path):
+def process_foot_image(image_path, paper_size="letter"):
     try:
         client = InferenceHTTPClient(
             api_url="https://serverless.roboflow.com",
@@ -39,7 +39,11 @@ def process_foot_image(image_path):
             return None, None, "Paper not detected in the image"
         if foot_dims is None:
             return None, None, "Foot not detected in the image"
-        pixels_per_inch = paper_dims[0] / 8.5
+        
+        # Use correct paper width based on paper size
+        paper_width_inches = 8.5 if paper_size == "letter" else 8.27  # A4 width is 8.27"
+        pixels_per_inch = paper_dims[0] / paper_width_inches
+        
         length_inches = round(foot_dims[1] / pixels_per_inch, 2)
         width_inches = round(foot_dims[0] / pixels_per_inch, 2)
         return length_inches, width_inches, None
@@ -136,7 +140,7 @@ def enhanced_score_shoe(user_length, user_width, shoe_length, shoe_width):
 
 # === ENHANCED INSOLE PROCESSING FUNCTIONS ===
 
-def calculate_hybrid_measurements(insole_points, paper_points):
+def calculate_hybrid_measurements(insole_points, paper_points, paper_size="letter"):
     """
     Calculate measurements: bounding box L/W + real area/perimeter
     """
@@ -147,9 +151,10 @@ def calculate_hybrid_measurements(insole_points, paper_points):
         insole_pts = np.array([[p["x"], p["y"]] for p in insole_points])
         paper_pts = np.array([[p["x"], p["y"]] for p in paper_points])
         
-        # Calculate paper reference (8.5" width)
+        # Calculate paper reference based on paper size
+        paper_width_inches = 8.5 if paper_size == "letter" else 8.27  # A4 width is 8.27"
         paper_width_pixels = np.max(paper_pts[:, 0]) - np.min(paper_pts[:, 0])
-        pixels_per_inch = paper_width_pixels / 8.5
+        pixels_per_inch = paper_width_pixels / paper_width_inches
         
         # SIMPLE: Bounding box length/width
         length_pixels = np.max(insole_pts[:, 1]) - np.min(insole_pts[:, 1])
@@ -188,7 +193,7 @@ def calculate_hybrid_measurements(insole_points, paper_points):
         }
 
 
-def process_insole_segmentation_data(result_json):
+def process_insole_segmentation_data(result_json, paper_size="letter"):
     """
     Process segmentation workflow results
     Extracts polygon data from workflow format
@@ -219,8 +224,8 @@ def process_insole_segmentation_data(result_json):
         if not insole_points or not paper_points:
             return None, None, "No polygon points found"
             
-        # Calculate all measurements
-        measurements = calculate_hybrid_measurements(insole_points, paper_points)
+        # Calculate all measurements with paper size
+        measurements = calculate_hybrid_measurements(insole_points, paper_points, paper_size)
         
         if measurements.get('error'):
             return None, None, f"Calculation error: {measurements['error']}"
@@ -231,7 +236,7 @@ def process_insole_segmentation_data(result_json):
         return None, None, f"Processing error: {str(e)}"
 
 
-def process_insole_image_with_enhanced_measurements(image_path):
+def process_insole_image_with_enhanced_measurements(image_path, paper_size="letter"):
     """
     Process an insole image using Roboflow workflow with enhanced measurements
     """
@@ -248,8 +253,8 @@ def process_insole_image_with_enhanced_measurements(image_path):
             use_cache=True
         )
 
-        # Process the results
-        measurements, error_data, error_msg = process_insole_segmentation_data(result)
+        # Process the results with paper size
+        measurements, error_data, error_msg = process_insole_segmentation_data(result, paper_size)
         
         if error_msg:
             return None, None, None, None, error_msg
@@ -275,7 +280,11 @@ class FootImageUploadView(APIView):
             instance = serializer.save(user=request.user)
             try:
                 image_path = instance.image.path
-                length, width, error_msg = process_foot_image(image_path)
+                # Get paper size from request, default to 'letter'
+                paper_size = request.data.get('paper_size', 'letter')
+                print(f"Using paper size: {paper_size}")
+                
+                length, width, error_msg = process_foot_image(image_path, paper_size)
                 if error_msg:
                     instance.status = 'error'
                     instance.error_message = error_msg

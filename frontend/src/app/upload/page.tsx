@@ -65,6 +65,9 @@ export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [paperSize, setPaperSize] = useState<"letter" | "a4">("letter")
+  const [locationDetected, setLocationDetected] = useState(false)
+  const [detectedCountry, setDetectedCountry] = useState<string | null>(null)
 
   const [filters, setFilters] = useState<UserPreferences>({
     gender: [],
@@ -79,6 +82,42 @@ export default function Dashboard() {
   useEffect(() => {
     checkAuth()
   }, [])
+
+  // Set default paper size based on user's location
+  useEffect(() => {
+    detectUserLocation()
+  }, [])
+
+  const detectUserLocation = async () => {
+    try {
+      // Try to get user's location using IP geolocation
+      const response = await fetch('https://ipapi.co/json/')
+      if (response.ok) {
+        const locationData = await response.json()
+        const countryCode = locationData.country_code
+        const countryName = locationData.country_name
+        
+        // Countries that primarily use Letter size paper
+        const letterSizeCountries = ['US', 'CA', 'MX', 'PH', 'CL', 'CO']
+        
+        if (letterSizeCountries.includes(countryCode)) {
+          setPaperSize('letter')
+        } else {
+          setPaperSize('a4')
+        }
+        
+        setDetectedCountry(countryName)
+        setLocationDetected(true)
+        
+        console.log(`Detected country: ${countryCode} (${countryName}), defaulting to ${letterSizeCountries.includes(countryCode) ? 'Letter' : 'A4'} paper size`)
+      }
+    } catch (error) {
+      console.log('Could not detect location, defaulting to Letter size:', error)
+      // Fallback to Letter size if detection fails
+      setPaperSize('letter')
+      setLocationDetected(false)
+    }
+  }
 
   // Load saved preferences on component mount
   useEffect(() => {
@@ -204,6 +243,7 @@ export default function Dashboard() {
 
       const formData = new FormData()
       formData.append("image", file)
+      formData.append("paper_size", paperSize)
 
       const token = localStorage.getItem("token")
       if (!token) throw new Error("User not authenticated")
@@ -579,6 +619,47 @@ export default function Dashboard() {
                   </p>
                 </div>
                 <div className="p-6">
+                  {/* Paper Size Toggle */}
+                  <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <h4 className="font-medium text-gray-900 mb-3">Paper Size</h4>
+                    {locationDetected && detectedCountry ? (
+                      <p className="text-sm text-gray-600 mb-3">
+                        Based on your location ({detectedCountry}), we've selected {paperSize === 'letter' ? 'US Letter' : 'A4'} paper size. You can change this if needed.
+                      </p>
+                    ) : (
+                      <p className="text-sm text-gray-600 mb-3">
+                        Select the paper size you're using for accurate measurements.
+                      </p>
+                    )}
+                    <div className="flex space-x-4">
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="paperSize"
+                          value="letter"
+                          checked={paperSize === "letter"}
+                          onChange={(e) => setPaperSize(e.target.value as "letter" | "a4")}
+                          className="text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="ml-2 text-sm text-gray-700">
+                          US Letter (8.5" × 11")
+                        </span>
+                      </label>
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="paperSize"
+                          value="a4"
+                          checked={paperSize === "a4"}
+                          onChange={(e) => setPaperSize(e.target.value as "letter" | "a4")}
+                          className="text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="ml-2 text-sm text-gray-700">
+                          A4 (8.27" × 11.69")
+                        </span>
+                      </label>
+                    </div>
+                  </div>
                   {/* Error Display */}
                   {error && (
                     <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start space-x-3">
@@ -706,7 +787,7 @@ export default function Dashboard() {
                           <div className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0 mt-0.5">
                             1
                           </div>
-                          <p className="text-gray-700">Place your foot on a white piece of paper (letter size)</p>
+                          <p className="text-gray-700">Place your foot on a white piece of paper (US Letter or A4)</p>
                         </div>
                         <div className="flex items-start space-x-3">
                           <div className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0 mt-0.5">
