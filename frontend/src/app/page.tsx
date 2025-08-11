@@ -63,7 +63,7 @@ const handleLoginSubmit = async (e: React.FormEvent) => {
     }
 
     setShowLogin(false)
-    router.push("/dashboard")
+    router.push("/upload")
   } catch (error) {
     console.error("Error logging in:", error)
   }
@@ -89,7 +89,7 @@ const handleSignupSubmit = async (e: React.FormEvent) => {
     }
 
     setShowSignup(false)
-    router.push("/dashboard")
+    router.push("/upload")
   } catch (error) {
     console.error("Error signing up:", error)
   }
