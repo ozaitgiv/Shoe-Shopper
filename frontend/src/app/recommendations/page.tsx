@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import {
   ShoppingBag,
   User,
@@ -81,8 +81,10 @@ interface UserPreferences {
 export default function RecommendationsPage() {
   const router = useRouter()
   const [user, setUser] = useState<AppUser | null>(null)
+  const dataLoadedRef = useRef(false)
   const [showDropdown, setShowDropdown] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingData, setIsLoadingData] = useState(false)
   const [allShoes, setAllShoes] = useState<Shoe[]>([])
   const [filteredShoes, setFilteredShoes] = useState<Shoe[]>([])
   const [userMeasurements, setUserMeasurements] = useState<UserMeasurements | null>(null)
@@ -103,9 +105,10 @@ export default function RecommendationsPage() {
     checkAuth()
   }, [])
 
-  // Load preferences and shoes when ready (either authenticated user or guest)
+  // Load preferences and shoes when auth check is complete
   useEffect(() => {
-    if (!isLoading) {
+    if (!isLoading && !dataLoadedRef.current) {
+      dataLoadedRef.current = true
       loadSavedPreferences()
       loadAllShoes()
     }
@@ -175,7 +178,7 @@ export default function RecommendationsPage() {
   }
 
   const loadAllShoes = async () => {
-    setIsLoading(true)
+    setIsLoadingData(true)
     setError(null)
 
     try {
@@ -255,7 +258,7 @@ export default function RecommendationsPage() {
       setError(error instanceof Error ? error.message : "Failed to load shoe recommendations. Please try again later.")
       setAllShoes([]) // Clear any existing data
     } finally {
-      setIsLoading(false)
+      setIsLoadingData(false)
     }
   }
 
@@ -415,6 +418,17 @@ export default function RecommendationsPage() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Setting up your session...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (isLoadingData) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading your personalized recommendations...</p>
         </div>
       </div>
@@ -553,7 +567,7 @@ export default function RecommendationsPage() {
         )}
 
         {/* No measurements state */}
-        {!isLoading && !error && allShoes.length === 0 && !userMeasurements && (
+        {!isLoading && !isLoadingData && !error && allShoes.length === 0 && !userMeasurements && (
           <div className="text-center py-12">
             <Camera className="h-16 w-16 mx-auto text-gray-400 mb-4" />
             <h3 className="text-xl font-semibold text-gray-900 mb-2">No Foot Measurements Found</h3>
