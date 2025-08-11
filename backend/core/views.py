@@ -271,15 +271,20 @@ def process_insole_image_with_enhanced_measurements(image_path, paper_size="lett
 # === API ENDPOINTS ===
 @method_decorator(csrf_exempt, name='dispatch')
 class FootImageUploadView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]  # Allow guests without authentication
 
     def post(self, request, format=None):
         print("Upload endpoint hit")
         print("Request FILES:", request.FILES)
         print("Request DATA:", request.data)
+        
+        # Handle both authenticated users and guests
+        user = request.user if request.user.is_authenticated else None
+        
         serializer = FootImageSerializer(data=request.data)
         if serializer.is_valid():
-            instance = serializer.save(user=request.user)
+            # For guests, user will be None - the serializer should handle this
+            instance = serializer.save(user=user)
             try:
                 image_path = instance.image.path
                 # Get paper size from request, default to 'letter'
@@ -306,6 +311,8 @@ class FootImageUploadView(APIView):
 
 
 class FootImageDetailView(APIView):
+    permission_classes = [AllowAny]  # Allow guests to check their measurement status
+    
     def get(self, request, pk, format=None):
         foot_image = get_object_or_404(FootImage, pk=pk)
         response_data = {
@@ -462,6 +469,7 @@ def signup(request):
     user = User.objects.create_user(username=username, password=password)
     token, _ = Token.objects.get_or_create(user=user)
     return Response({"message": "User created", "token": token.key}, status=status.HTTP_201_CREATED)
+
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])

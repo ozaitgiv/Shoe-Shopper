@@ -155,6 +155,12 @@ const getCSRFToken = async () => {
     }
   }
 
+  const handleGuestLogin = () => {
+    // Simply mark as guest and redirect - no backend call needed
+    localStorage.setItem("isGuest", "true")
+    router.push("/upload")
+  }
+
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
@@ -189,12 +195,18 @@ const getCSRFToken = async () => {
               Upload a photo of your foot on paper and let our AI-powered measurement system recommend the perfect shoes
               for your feet.
             </p>
-            <div className="flex justify-center">
+            <div className="flex justify-center gap-4">
               <button
                 onClick={() => setShowSignup(true)}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-semibold text-lg transition-colors"
               >
                 Get Started Free
+              </button>
+              <button
+                onClick={handleGuestLogin}
+                className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-8 py-3 rounded-lg font-semibold text-lg transition-colors border border-gray-300"
+              >
+                Try as Guest
               </button>
             </div>
           </div>

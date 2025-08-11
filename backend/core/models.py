@@ -2,7 +2,7 @@ from django.db import models
 from django.contrib.auth.models import User
 
 class FootImage(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='foot_images')  
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='foot_images', null=True, blank=True)  # Allow null for guests  
     image = models.ImageField(upload_to='foot_images/')
     uploaded_at = models.DateTimeField(auto_now_add=True)
     

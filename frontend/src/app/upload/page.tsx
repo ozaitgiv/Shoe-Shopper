@@ -145,11 +145,27 @@ export default function Dashboard() {
   }
 
   const checkAuth = async () => {
+    const isGuest = localStorage.getItem("isGuest") === "true"
     const token = localStorage.getItem("token")
+    
+    if (isGuest) {
+      // For guests, create a mock user object and skip backend auth
+      setUser({
+        id: 0,
+        username: "guest",
+        first_name: "Guest",
+        last_name: "User",
+        email: "guest@example.com"
+      })
+      setIsLoading(false)
+      return
+    }
+    
     if (!token) {
       router.push("/")
       return
     }
+    
     try {
       const response = await fetch(`${API_BASE_URL}/api/auth/user/`, {
         headers: {
@@ -246,14 +262,20 @@ export default function Dashboard() {
       formData.append("paper_size", paperSize)
 
       const token = localStorage.getItem("token")
-      if (!token) throw new Error("User not authenticated")
+      const isGuest = localStorage.getItem("isGuest") === "true"
+      
+      // Build headers - include auth token only for non-guests
+      const headers = {
+        "X-CSRFToken": csrfToken,
+      }
+      
+      if (!isGuest && token) {
+        headers["Authorization"] = `Token ${token}`
+      }
 
       const uploadResponse = await fetch(`${API_BASE_URL}/api/measurements/upload/`, {
         method: "POST",
-        headers: {
-          Authorization: `Token ${token}`,
-          "X-CSRFToken": csrfToken,
-        },
+        headers,
         credentials: "include",
         body: formData,
       })
@@ -276,14 +298,19 @@ export default function Dashboard() {
     const maxAttempts = 60
     let attempts = 0
     const token = localStorage.getItem("token")
+    const isGuest = localStorage.getItem("isGuest") === "true"
 
     const poll = async (): Promise<void> => {
       try {
+        // Build headers - include auth token only for non-guests
+        const headers = {}
+        if (!isGuest && token) {
+          headers["Authorization"] = `Token ${token}`
+        }
+
         const response = await fetch(`${API_BASE_URL}/api/measurements/${measurementId}/`, {
           method: "GET",
-          headers: {
-            Authorization: `Token ${token}`,
-          },
+          headers,
         })
 
         if (!response.ok) {
@@ -330,6 +357,13 @@ export default function Dashboard() {
   // Get user display name
   const getUserDisplayName = () => {
     if (!user) return "User"
+    
+    // Check if this is a guest user
+    const isGuest = localStorage.getItem("isGuest") === "true"
+    if (isGuest) {
+      return "Guest User"
+    }
+    
     if (user.first_name && user.last_name) {
       return `${user.first_name} ${user.last_name}`
     }
@@ -405,6 +439,23 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Guest Banner */}
+      {localStorage.getItem("isGuest") === "true" && (
+        <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2">
+          <div className="max-w-7xl mx-auto">
+            <p className="text-sm text-yellow-800 text-center">
+              <span className="font-medium">Guest Mode:</span> Your data will be deleted after your session. 
+              <button 
+                onClick={() => router.push("/")}
+                className="underline hover:no-underline ml-2"
+              >
+                Create account to save your measurements
+              </button>
+            </p>
+          </div>
+        </div>
+      )}
+      
       {/* Header */}
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
