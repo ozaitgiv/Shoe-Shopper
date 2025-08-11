@@ -65,6 +65,9 @@ export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [paperSize, setPaperSize] = useState<"letter" | "a4">("letter")
+  const [locationDetected, setLocationDetected] = useState(false)
+  const [detectedCountry, setDetectedCountry] = useState<string | null>(null)
 
   const [filters, setFilters] = useState<UserPreferences>({
     gender: [],
@@ -79,6 +82,42 @@ export default function Dashboard() {
   useEffect(() => {
     checkAuth()
   }, [])
+
+  // Set default paper size based on user's location
+  useEffect(() => {
+    detectUserLocation()
+  }, [])
+
+  const detectUserLocation = async () => {
+    try {
+      // Try to get user's location using IP geolocation
+      const response = await fetch('https://ipapi.co/json/')
+      if (response.ok) {
+        const locationData = await response.json()
+        const countryCode = locationData.country_code
+        const countryName = locationData.country_name
+        
+        // Countries that primarily use Letter size paper
+        const letterSizeCountries = ['US', 'CA', 'MX', 'PH', 'CL', 'CO']
+        
+        if (letterSizeCountries.includes(countryCode)) {
+          setPaperSize('letter')
+        } else {
+          setPaperSize('a4')
+        }
+        
+        setDetectedCountry(countryName)
+        setLocationDetected(true)
+        
+        console.log(`Detected country: ${countryCode} (${countryName}), defaulting to ${letterSizeCountries.includes(countryCode) ? 'Letter' : 'A4'} paper size`)
+      }
+    } catch (error) {
+      console.log('Could not detect location, defaulting to Letter size:', error)
+      // Fallback to Letter size if detection fails
+      setPaperSize('letter')
+      setLocationDetected(false)
+    }
+  }
 
   // Load saved preferences on component mount
   useEffect(() => {
@@ -106,11 +145,27 @@ export default function Dashboard() {
   }
 
   const checkAuth = async () => {
+    const isGuest = localStorage.getItem("isGuest") === "true"
     const token = localStorage.getItem("token")
+    
+    if (isGuest) {
+      // For guests, create a mock user object and skip backend auth
+      setUser({
+        id: 0,
+        username: "guest",
+        first_name: "Guest",
+        last_name: "User",
+        email: "guest@example.com"
+      })
+      setIsLoading(false)
+      return
+    }
+    
     if (!token) {
       router.push("/")
       return
     }
+    
     try {
       const response = await fetch(`${API_BASE_URL}/api/auth/user/`, {
         headers: {
@@ -204,16 +259,23 @@ export default function Dashboard() {
 
       const formData = new FormData()
       formData.append("image", file)
+      formData.append("paper_size", paperSize)
 
       const token = localStorage.getItem("token")
-      if (!token) throw new Error("User not authenticated")
+      const isGuest = localStorage.getItem("isGuest") === "true"
+      
+      // Build headers - include auth token only for non-guests
+      const headers = {
+        "X-CSRFToken": csrfToken,
+      }
+      
+      if (!isGuest && token) {
+        headers["Authorization"] = `Token ${token}`
+      }
 
       const uploadResponse = await fetch(`${API_BASE_URL}/api/measurements/upload/`, {
         method: "POST",
-        headers: {
-          Authorization: `Token ${token}`,
-          "X-CSRFToken": csrfToken,
-        },
+        headers,
         credentials: "include",
         body: formData,
       })
@@ -236,14 +298,19 @@ export default function Dashboard() {
     const maxAttempts = 60
     let attempts = 0
     const token = localStorage.getItem("token")
+    const isGuest = localStorage.getItem("isGuest") === "true"
 
     const poll = async (): Promise<void> => {
       try {
+        // Build headers - include auth token only for non-guests
+        const headers = {}
+        if (!isGuest && token) {
+          headers["Authorization"] = `Token ${token}`
+        }
+
         const response = await fetch(`${API_BASE_URL}/api/measurements/${measurementId}/`, {
           method: "GET",
-          headers: {
-            Authorization: `Token ${token}`,
-          },
+          headers,
         })
 
         if (!response.ok) {
@@ -290,6 +357,13 @@ export default function Dashboard() {
   // Get user display name
   const getUserDisplayName = () => {
     if (!user) return "User"
+    
+    // Check if this is a guest user
+    const isGuest = localStorage.getItem("isGuest") === "true"
+    if (isGuest) {
+      return "Guest User"
+    }
+    
     if (user.first_name && user.last_name) {
       return `${user.first_name} ${user.last_name}`
     }
@@ -365,6 +439,23 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Guest Banner */}
+      {localStorage.getItem("isGuest") === "true" && (
+        <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2">
+          <div className="max-w-7xl mx-auto">
+            <p className="text-sm text-yellow-800 text-center">
+              <span className="font-medium">Guest Mode:</span> Your data will be deleted after your session. 
+              <button 
+                onClick={() => router.push("/")}
+                className="underline hover:no-underline ml-2"
+              >
+                Create account to save your measurements
+              </button>
+            </p>
+          </div>
+        </div>
+      )}
+      
       {/* Header */}
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -579,6 +670,47 @@ export default function Dashboard() {
                   </p>
                 </div>
                 <div className="p-6">
+                  {/* Paper Size Toggle */}
+                  <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <h4 className="font-medium text-gray-900 mb-3">Paper Size</h4>
+                    {locationDetected && detectedCountry ? (
+                      <p className="text-sm text-gray-600 mb-3">
+                        Based on your location ({detectedCountry}), we've selected {paperSize === 'letter' ? 'US Letter' : 'A4'} paper size. You can change this if needed.
+                      </p>
+                    ) : (
+                      <p className="text-sm text-gray-600 mb-3">
+                        Select the paper size you're using for accurate measurements.
+                      </p>
+                    )}
+                    <div className="flex space-x-4">
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="paperSize"
+                          value="letter"
+                          checked={paperSize === "letter"}
+                          onChange={(e) => setPaperSize(e.target.value as "letter" | "a4")}
+                          className="text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="ml-2 text-sm text-gray-700">
+                          US Letter (8.5" × 11")
+                        </span>
+                      </label>
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="paperSize"
+                          value="a4"
+                          checked={paperSize === "a4"}
+                          onChange={(e) => setPaperSize(e.target.value as "letter" | "a4")}
+                          className="text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="ml-2 text-sm text-gray-700">
+                          A4 (8.27" × 11.69")
+                        </span>
+                      </label>
+                    </div>
+                  </div>
                   {/* Error Display */}
                   {error && (
                     <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start space-x-3">
@@ -706,7 +838,7 @@ export default function Dashboard() {
                           <div className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0 mt-0.5">
                             1
                           </div>
-                          <p className="text-gray-700">Place your foot on a white piece of paper (letter size)</p>
+                          <p className="text-gray-700">Place your foot on a white piece of paper (US Letter or A4)</p>
                         </div>
                         <div className="flex items-start space-x-3">
                           <div className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0 mt-0.5">

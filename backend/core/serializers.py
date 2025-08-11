@@ -5,9 +5,12 @@ class FootImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = FootImage
         fields = [
-            'id', 'image', 'uploaded_at', 'status',
+            'id', 'user', 'image', 'uploaded_at', 'status',
             'length_inches', 'width_inches', 'error_message'
         ]
+        extra_kwargs = {
+            'user': {'required': False, 'allow_null': True}
+        }
 
 class ShoeSerializer(serializers.ModelSerializer):
     image_url = serializers.SerializerMethodField()

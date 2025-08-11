@@ -2,7 +2,7 @@ from django.db import models
 from django.contrib.auth.models import User
 
 class FootImage(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='foot_images')  
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='foot_images', null=True, blank=True)  # Allow null for guests  
     image = models.ImageField(upload_to='foot_images/')
     uploaded_at = models.DateTimeField(auto_now_add=True)
     
@@ -17,7 +17,13 @@ class FootImage(models.Model):
     error_message = models.TextField(null=True, blank=True)
     
     def __str__(self):
-        return f"FootImage {self.id} by {self.user.username}"
+        if self.user:
+            return f"FootImage {self.id} by {self.user.username}"
+        elif self.error_message and self.error_message.startswith('GUEST_SESSION:'):
+            session_id = self.error_message.replace('GUEST_SESSION:', '')[:8]
+            return f"FootImage {self.id} by Guest ({session_id}...)"
+        else:
+            return f"FootImage {self.id} by Guest"
 
 
 class Shoe(models.Model):

@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import {
   ShoppingBag,
   User,
@@ -81,8 +81,10 @@ interface UserPreferences {
 export default function RecommendationsPage() {
   const router = useRouter()
   const [user, setUser] = useState<AppUser | null>(null)
+  const dataLoadedRef = useRef(false)
   const [showDropdown, setShowDropdown] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingData, setIsLoadingData] = useState(false)
   const [allShoes, setAllShoes] = useState<Shoe[]>([])
   const [filteredShoes, setFilteredShoes] = useState<Shoe[]>([])
   const [userMeasurements, setUserMeasurements] = useState<UserMeasurements | null>(null)
@@ -103,13 +105,14 @@ export default function RecommendationsPage() {
     checkAuth()
   }, [])
 
-  // Load preferences and shoes when user is authenticated
+  // Load preferences and shoes when auth check is complete
   useEffect(() => {
-    if (user) {
+    if (!isLoading && !dataLoadedRef.current) {
+      dataLoadedRef.current = true
       loadSavedPreferences()
       loadAllShoes()
     }
-  }, [user])
+  }, [isLoading])
 
   // Apply filters and sorting whenever preferences, sorting, or shoes change
   useEffect(() => {
@@ -139,10 +142,19 @@ export default function RecommendationsPage() {
 
   const checkAuth = async () => {
     const token = localStorage.getItem("token")
-    if (!token) {
+    const isGuest = localStorage.getItem("isGuest") === "true"
+    
+    if (!token && !isGuest) {
       router.push("/")
       return
     }
+    
+    if (isGuest) {
+      // Guest user, no auth check needed
+      setIsLoading(false)
+      return
+    }
+    
     try {
       const response = await fetch(`${API_BASE_URL}/api/auth/user/`, {
         headers: {
@@ -166,20 +178,28 @@ export default function RecommendationsPage() {
   }
 
   const loadAllShoes = async () => {
-    setIsLoading(true)
+    setIsLoadingData(true)
     setError(null)
 
     try {
       const token = localStorage.getItem("token")
+      const isGuest = localStorage.getItem("isGuest") === "true"
 
       // Get User Measurements - REAL API CALL
       let measurements = null
       try {
+        const headers: { [key: string]: string } = {
+          "Content-Type": "application/json",
+        }
+        
+        // Only add auth header if user is authenticated
+        if (token && !isGuest) {
+          headers.Authorization = `Token ${token}`
+        }
+        
         const measurementsResponse = await fetch(`${API_BASE_URL}/api/measurements/latest/`, {
-          headers: {
-            Authorization: `Token ${token}`,
-            "Content-Type": "application/json",
-          },
+          headers,
+          credentials: "include", // Important: Include session cookies for guest isolation
         })
 
         if (measurementsResponse.ok) {
@@ -202,11 +222,18 @@ export default function RecommendationsPage() {
 
       // Load recommendations from backend - REAL API CALL
       try {
+        const headers: { [key: string]: string } = {
+          "Content-Type": "application/json",
+        }
+        
+        // Only add auth header if user is authenticated
+        if (token && !isGuest) {
+          headers.Authorization = `Token ${token}`
+        }
+        
         const recommendationsResponse = await fetch(`${API_BASE_URL}/api/recommendations/`, {
-          headers: {
-            Authorization: `Token ${token}`,
-            "Content-Type": "application/json",
-          },
+          headers,
+          credentials: "include", // Important: Include session cookies for guest isolation
         })
 
         if (recommendationsResponse.ok) {
@@ -233,7 +260,7 @@ export default function RecommendationsPage() {
       setError(error instanceof Error ? error.message : "Failed to load shoe recommendations. Please try again later.")
       setAllShoes([]) // Clear any existing data
     } finally {
-      setIsLoading(false)
+      setIsLoadingData(false)
     }
   }
 
@@ -333,6 +360,8 @@ export default function RecommendationsPage() {
 
   // Get user initials for avatar
   const getUserInitials = () => {
+    const isGuest = localStorage.getItem("isGuest") === "true"
+    if (isGuest) return "G"
     if (!user) return "U"
     const firstInitial = user.first_name ? user.first_name[0] : user.username[0]
     const lastInitial = user.last_name ? user.last_name[0] : ""
@@ -341,6 +370,8 @@ export default function RecommendationsPage() {
 
   // Get user display name
   const getUserDisplayName = () => {
+    const isGuest = localStorage.getItem("isGuest") === "true"
+    if (isGuest) return "Guest"
     if (!user) return "User"
     if (user.first_name && user.last_name) {
       return `${user.first_name} ${user.last_name}`
@@ -389,6 +420,17 @@ export default function RecommendationsPage() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Setting up your session...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (isLoadingData) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading your personalized recommendations...</p>
         </div>
       </div>
@@ -422,24 +464,43 @@ export default function RecommendationsPage() {
                 <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg border border-gray-200 z-50">
                   <div className="px-4 py-3 border-b border-gray-100">
                     <p className="text-sm font-medium text-gray-900">{getUserDisplayName()}</p>
-                    <p className="text-xs text-gray-500">{user?.email}</p>
+                    <p className="text-xs text-gray-500">
+                      {localStorage.getItem("isGuest") === "true" ? "Guest User" : user?.email}
+                    </p>
                   </div>
                   <div className="py-1">
-                    <button
-                      onClick={() => router.push("/account")}
-                      className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                    >
-                      <User className="mr-2 h-4 w-4" />
-                      Account
-                    </button>
-                    <hr className="my-1" />
-                    <button
-                      onClick={handleLogout}
-                      className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                    >
-                      <LogOut className="mr-2 h-4 w-4" />
-                      Log out
-                    </button>
+                    {localStorage.getItem("isGuest") !== "true" && (
+                      <>
+                        <button
+                          onClick={() => router.push("/account")}
+                          className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        >
+                          <User className="mr-2 h-4 w-4" />
+                          Account
+                        </button>
+                        <hr className="my-1" />
+                      </>
+                    )}
+                    {localStorage.getItem("isGuest") === "true" ? (
+                      <button
+                        onClick={() => {
+                          localStorage.removeItem("isGuest")
+                          router.push("/")
+                        }}
+                        className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      >
+                        <LogOut className="mr-2 h-4 w-4" />
+                        Exit Guest Mode
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleLogout}
+                        className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      >
+                        <LogOut className="mr-2 h-4 w-4" />
+                        Log out
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
@@ -508,7 +569,7 @@ export default function RecommendationsPage() {
         )}
 
         {/* No measurements state */}
-        {!isLoading && !error && allShoes.length === 0 && !userMeasurements && (
+        {!isLoading && !isLoadingData && !error && allShoes.length === 0 && !userMeasurements && (
           <div className="text-center py-12">
             <Camera className="h-16 w-16 mx-auto text-gray-400 mb-4" />
             <h3 className="text-xl font-semibold text-gray-900 mb-2">No Foot Measurements Found</h3>

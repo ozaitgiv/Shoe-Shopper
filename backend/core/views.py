@@ -1,6 +1,34 @@
 import os
+import logging
 
 from inference_sdk import InferenceHTTPClient
+
+logger = logging.getLogger(__name__)
+
+def cleanup_old_guest_sessions():
+    """Clean up guest sessions older than 7 days to prevent database bloat"""
+    from datetime import datetime, timedelta
+    from django.utils import timezone
+    
+    cutoff_date = timezone.now() - timedelta(days=7)
+    
+    try:
+        # Delete old guest foot images
+        old_guest_images = FootImage.objects.filter(
+            user__isnull=True,
+            error_message__startswith='GUEST_SESSION:',
+            uploaded_at__lt=cutoff_date
+        )
+        
+        count = old_guest_images.count()
+        old_guest_images.delete()
+        
+        logger.info(f"Cleaned up {count} old guest sessions")
+        return count
+    except Exception as e:
+        logger.error(f"Error cleaning up guest sessions: {str(e)}")
+        return 0
+
 from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.utils.decorators import method_decorator
 from django.http import JsonResponse
@@ -21,7 +49,7 @@ from rest_framework.authtoken.models import Token
 from .models import FootImage, Shoe
 from .serializers import FootImageSerializer, ShoeSerializer
 
-def process_foot_image(image_path):
+def process_foot_image(image_path, paper_size="letter"):
     try:
         client = InferenceHTTPClient(
             api_url="https://serverless.roboflow.com",
@@ -39,7 +67,11 @@ def process_foot_image(image_path):
             return None, None, "Paper not detected in the image"
         if foot_dims is None:
             return None, None, "Foot not detected in the image"
-        pixels_per_inch = paper_dims[0] / 8.5
+        
+        # Use correct paper width based on paper size
+        paper_width_inches = 8.5 if paper_size == "letter" else 8.27  # A4 width is 8.27"
+        pixels_per_inch = paper_dims[0] / paper_width_inches
+        
         length_inches = round(foot_dims[1] / pixels_per_inch, 2)
         width_inches = round(foot_dims[0] / pixels_per_inch, 2)
         return length_inches, width_inches, None
@@ -98,37 +130,39 @@ def enhanced_score_shoe(user_length, user_width, shoe_length, shoe_width):
     # Calculate ideal shoe length (foot + thumb space)
     ideal_shoe_length = user_length + 0.625  # 5/8 inch thumb width
     
-    # Calculate differences from ideal measurements
-    length_diff = abs(shoe_length - ideal_shoe_length)
+    # Calculate directional difference
+    length_diff = shoe_length - ideal_shoe_length  # positive if shoe is longer
+    
+    # More lenient toward larger shoes, stricter on smaller
+    if length_diff >= 0:  # Shoe is longer than ideal
+        if length_diff <= 0.35:  # Perfect fit zone
+            length_score = 100
+        elif length_diff <= 0.8:  # Good fit zone
+            length_score = 90 - (length_diff - 0.35) * 30
+        elif length_diff <= 1.5:  # Acceptable zone
+            length_score = 75 - (length_diff - 0.8) * 40
+        else:  # Too big
+            length_score = max(0, 50 - (length_diff - 1.5) * 30)
+    else:  # Shoe is shorter than ideal (penalize more harshly)
+        shortfall = abs(length_diff)
+        if shortfall <= 0.2:  # Barely too small
+            length_score = 90 - (shortfall) * 80
+        elif shortfall <= 0.5:  # Clearly too small
+            length_score = 60 - (shortfall - 0.2) * 120
+        else:  # Significantly too small
+            length_score = max(0, 30 - (shortfall - 0.5) * 150)
+    
+    # Width scoring (unchanged)
     width_diff = abs(shoe_width - user_width)
     
-    # Length scoring with proper tolerance zones
-    if length_diff <= 0.35:  # Perfect fit zone
-        length_score = 100
-    elif length_diff <= 0.7:  # Good fit zone
-        length_score = 90 - (length_diff - 0.125) * 40
-    elif length_diff <= 1.4:  # Acceptable zone
-        length_score = 75 - (length_diff - 0.25) * 60
-    else:  # Poor fit
-        length_score = max(0, 50 - (length_diff - 0.5) * 50)
-    
-    # Penalize shoes that are too short
-    #if shoe_length < user_length + 0.25:
-        #length_score = max(0, length_score - 30)
-    
-    # Width scoring with tight tolerances
-    if width_diff <= 0.2:  # Perfect fit zone
+    if width_diff <= 0.2:
         width_score = 100
-    elif width_diff <= 0.4:  # Good fit zone
+    elif width_diff <= 0.4:
         width_score = 90 - (width_diff - 0.05) * 100
-    elif width_diff <= 0.8:  # Acceptable zone
+    elif width_diff <= 0.8:
         width_score = 75 - (width_diff - 0.1) * 150
-    else:  # Poor fit
+    else:
         width_score = max(0, 60 - (width_diff - 0.2) * 100)
-    
-    # Penalize shoes that are too narrow
-    #if shoe_width < user_width - 0.05:
-        #width_score = max(0, width_score - 25)
     
     # Weighted final score
     final_score = (length_score * 0.65) + (width_score * 0.35)
@@ -136,7 +170,7 @@ def enhanced_score_shoe(user_length, user_width, shoe_length, shoe_width):
 
 # === ENHANCED INSOLE PROCESSING FUNCTIONS ===
 
-def calculate_hybrid_measurements(insole_points, paper_points):
+def calculate_hybrid_measurements(insole_points, paper_points, paper_size="letter"):
     """
     Calculate measurements: bounding box L/W + real area/perimeter
     """
@@ -147,9 +181,10 @@ def calculate_hybrid_measurements(insole_points, paper_points):
         insole_pts = np.array([[p["x"], p["y"]] for p in insole_points])
         paper_pts = np.array([[p["x"], p["y"]] for p in paper_points])
         
-        # Calculate paper reference (8.5" width)
+        # Calculate paper reference based on paper size
+        paper_width_inches = 8.5 if paper_size == "letter" else 8.27  # A4 width is 8.27"
         paper_width_pixels = np.max(paper_pts[:, 0]) - np.min(paper_pts[:, 0])
-        pixels_per_inch = paper_width_pixels / 8.5
+        pixels_per_inch = paper_width_pixels / paper_width_inches
         
         # SIMPLE: Bounding box length/width
         length_pixels = np.max(insole_pts[:, 1]) - np.min(insole_pts[:, 1])
@@ -188,7 +223,7 @@ def calculate_hybrid_measurements(insole_points, paper_points):
         }
 
 
-def process_insole_segmentation_data(result_json):
+def process_insole_segmentation_data(result_json, paper_size="letter"):
     """
     Process segmentation workflow results
     Extracts polygon data from workflow format
@@ -219,8 +254,8 @@ def process_insole_segmentation_data(result_json):
         if not insole_points or not paper_points:
             return None, None, "No polygon points found"
             
-        # Calculate all measurements
-        measurements = calculate_hybrid_measurements(insole_points, paper_points)
+        # Calculate all measurements with paper size
+        measurements = calculate_hybrid_measurements(insole_points, paper_points, paper_size)
         
         if measurements.get('error'):
             return None, None, f"Calculation error: {measurements['error']}"
@@ -231,7 +266,7 @@ def process_insole_segmentation_data(result_json):
         return None, None, f"Processing error: {str(e)}"
 
 
-def process_insole_image_with_enhanced_measurements(image_path):
+def process_insole_image_with_enhanced_measurements(image_path, paper_size="letter"):
     """
     Process an insole image using Roboflow workflow with enhanced measurements
     """
@@ -248,8 +283,8 @@ def process_insole_image_with_enhanced_measurements(image_path):
             use_cache=True
         )
 
-        # Process the results
-        measurements, error_data, error_msg = process_insole_segmentation_data(result)
+        # Process the results with paper size
+        measurements, error_data, error_msg = process_insole_segmentation_data(result, paper_size)
         
         if error_msg:
             return None, None, None, None, error_msg
@@ -264,37 +299,107 @@ def process_insole_image_with_enhanced_measurements(image_path):
 # === API ENDPOINTS ===
 @method_decorator(csrf_exempt, name='dispatch')
 class FootImageUploadView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]  # Allow guests without authentication
 
     def post(self, request, format=None):
-        print("Upload endpoint hit")
-        print("Request FILES:", request.FILES)
-        print("Request DATA:", request.data)
-        serializer = FootImageSerializer(data=request.data)
-        if serializer.is_valid():
-            instance = serializer.save(user=request.user)
-            try:
-                image_path = instance.image.path
-                length, width, error_msg = process_foot_image(image_path)
-                if error_msg:
-                    instance.status = 'error'
-                    instance.error_message = error_msg
-                else:
-                    instance.status = 'complete'
-                    instance.length_inches = length
-                    instance.width_inches = width
-                instance.save()
-            except Exception as e:
-                instance.status = 'error'
-                instance.error_message = f"Unexpected error: {str(e)}"
-                instance.save()
-
-            return Response({ "measurement_id": instance.id }, status=status.HTTP_201_CREATED)
+        logger.info("Foot image upload endpoint accessed", extra={
+            'user_authenticated': request.user.is_authenticated,
+            'user_id': request.user.id if request.user.is_authenticated else None,
+            'has_files': bool(request.FILES),
+        })
         
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            # Handle both authenticated users and guests
+            user = request.user if request.user.is_authenticated else None
+            
+            # For guests, ensure we have a session
+            guest_session_key = None
+            if not user:
+                if not request.session.session_key:
+                    request.session.create()
+                guest_session_key = request.session.session_key
+                logger.info("Guest session created/retrieved", extra={
+                    'session_key': guest_session_key[:8] + '...'  # Log partial key for debugging
+                })
+            
+            serializer = FootImageSerializer(data=request.data)
+            if serializer.is_valid():
+                logger.info("FootImage serializer validation successful")
+                instance = serializer.save(user=user)
+                
+                # For guests, store session key in error_message field temporarily
+                # This is a safe approach that doesn't require database schema changes
+                if guest_session_key:
+                    instance.error_message = f"GUEST_SESSION:{guest_session_key}"
+                    instance.save()
+                    
+                    # Occasionally cleanup old guest sessions (10% chance)
+                    import random
+                    if random.random() < 0.1:  # 10% chance
+                        cleanup_old_guest_sessions()
+                
+                logger.info("FootImage instance created", extra={
+                    'instance_id': instance.id,
+                    'is_guest': user is None,
+                    'has_session': guest_session_key is not None
+                })
+                
+                try:
+                    image_path = instance.image.path
+                    
+                    # Get paper size from request, default to 'letter'
+                    paper_size = request.data.get('paper_size', 'letter')
+                    logger.debug("Processing foot image", extra={
+                        'image_path': image_path,
+                        'paper_size': paper_size
+                    })
+                    
+                    length, width, error_msg = process_foot_image(image_path, paper_size)
+                    if error_msg:
+                        logger.error("Foot image processing failed", extra={
+                            'instance_id': instance.id,
+                            'error_message': error_msg
+                        })
+                        instance.status = 'error'
+                        instance.error_message = error_msg
+                    else:
+                        logger.info("Foot image processing completed successfully", extra={
+                            'instance_id': instance.id,
+                            'length': length,
+                            'width': width
+                        })
+                        instance.status = 'complete'
+                        instance.length_inches = length
+                        instance.width_inches = width
+                    instance.save()
+                except Exception as e:
+                    logger.exception("Unexpected error during foot image processing", extra={
+                        'instance_id': instance.id,
+                        'error': str(e)
+                    })
+                    instance.status = 'error'
+                    instance.error_message = f"Unexpected error: {str(e)}"
+                    instance.save()
+
+                return Response({ "measurement_id": instance.id }, status=status.HTTP_201_CREATED)
+            else:
+                logger.warning("FootImage serializer validation failed", extra={
+                    'errors': serializer.errors
+                })
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                
+        except Exception as e:
+            logger.exception("Unexpected error in upload view", extra={
+                'error': str(e)
+            })
+            return Response({
+                "error": f"Server error: {str(e)}"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class FootImageDetailView(APIView):
+    permission_classes = [AllowAny]  # Allow guests to check their measurement status
+    
     def get(self, request, pk, format=None):
         foot_image = get_object_or_404(FootImage, pk=pk)
         response_data = {
@@ -452,6 +557,7 @@ def signup(request):
     token, _ = Token.objects.get_or_create(user=user)
     return Response({"message": "User created", "token": token.key}, status=status.HTTP_201_CREATED)
 
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def user_info(request):
@@ -468,13 +574,33 @@ def logout_view(request):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def recommendations(request):
     """Get shoe recommendations using real insole measurements"""
-    foot_image = FootImage.objects.filter(
-        user=request.user, 
-        status='complete'
-    ).order_by('-uploaded_at').first()
+    # Support both authenticated users and guests
+    if request.user.is_authenticated:
+        foot_image = FootImage.objects.filter(
+            user=request.user, 
+            status='complete'
+        ).order_by('-uploaded_at').first()
+    else:
+        # For guests, filter by session key to isolate their data
+        session_key = request.session.session_key
+        if not session_key:
+            # No session means no previous uploads
+            foot_image = None
+        else:
+            # Find guest images that belong to this session
+            foot_image = FootImage.objects.filter(
+                user__isnull=True,
+                status='complete',
+                error_message__startswith=f'GUEST_SESSION:{session_key}'
+            ).order_by('-uploaded_at').first()
+            
+        logger.info("Guest recommendations query", extra={
+            'session_key': session_key[:8] + '...' if session_key else None,
+            'found_image': foot_image is not None
+        })
     
     if not foot_image or foot_image.length_inches is None or foot_image.width_inches is None:
         return Response({
@@ -530,10 +656,24 @@ def recommendations(request):
     })
   
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def get_latest_measurement(request):
     try:
-        latest = FootImage.objects.filter(user=request.user, status='complete').order_by('-uploaded_at').first()
+        # Support both authenticated users and guests
+        if request.user.is_authenticated:
+            latest = FootImage.objects.filter(user=request.user, status='complete').order_by('-uploaded_at').first()
+        else:
+            # For guests, filter by session key to isolate their data
+            session_key = request.session.session_key
+            if not session_key:
+                latest = None
+            else:
+                latest = FootImage.objects.filter(
+                    user__isnull=True,
+                    status='complete',
+                    error_message__startswith=f'GUEST_SESSION:{session_key}'
+                ).order_by('-uploaded_at').first()
+        
         if not latest:
             return Response({"error": "No measurements found"}, status=status.HTTP_404_NOT_FOUND)
         return Response({
@@ -572,7 +712,10 @@ def delete_account(request):
 
     # Delete user and cascade to related FootImages
     request.user.delete()
-    print("DELETE account called")
+    logger.info("User account deleted successfully", extra={
+        'user_id': request.user.id,
+        'username': request.user.username
+    })
     return Response(
         {"message": "Account deleted successfully"}, 
         status=status.HTTP_200_OK

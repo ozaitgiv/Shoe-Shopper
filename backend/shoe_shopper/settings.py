@@ -64,7 +64,7 @@ else:
 
 # Application definition
 INSTALLED_APPS = [
-    'storages',                                 # Added this line for Django Readibility
+    # 'storages',                                 # Commented out - not using AWS S3 currently
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -141,15 +141,15 @@ REST_FRAMEWORK = {
     ],
 }
 
-# AWS S3 Settings
-AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')          # Replace with your AWS Access Key
-AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')  # Replace with your AWS Secret Access Key
-AWS_STORAGE_BUCKET_NAME = os.getenv('shoe-shopper-images')
-AWS_S3_REGION_NAME = os.getenv('us-east-1')
-AWS_S3_FILE_OVERWRITE = False
-DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
-STATICFILES_STORAGE = 'storages.backends.s3boto3.S3StaticStorage'
-AWS_DEFAULT_ACL = 'public-read'
+# AWS S3 Settings - Currently disabled (using local storage)
+# AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')          
+# AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')  
+# AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME', 'shoe-shopper-images')
+# AWS_S3_REGION_NAME = os.getenv('AWS_S3_REGION_NAME', 'us-east-1')
+# AWS_S3_FILE_OVERWRITE = False
+# DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+# STATICFILES_STORAGE = 'storages.backends.s3boto3.S3StaticStorage'
+# AWS_DEFAULT_ACL = 'public-read'
 
 
 # Password validation
