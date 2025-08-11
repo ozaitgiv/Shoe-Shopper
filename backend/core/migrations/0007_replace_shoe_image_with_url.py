@@ -22,7 +22,7 @@ def reverse_log_migration_info(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0006_merge_20250721_2035'),
+        ('core', '0006_merge_0004_footimage_user_0005_add_shoe_image'),
     ]
 
     operations = [
