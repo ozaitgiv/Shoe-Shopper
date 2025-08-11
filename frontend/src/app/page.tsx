@@ -83,6 +83,9 @@ const getCSRFToken = async () => {
       if (response.ok) {
         // Store token in localStorage
         localStorage.setItem("token", data.token)
+        
+        // Clear guest flag since this is a real login
+        localStorage.removeItem("isGuest")
 
         // Redirect to upload page
         router.push("/upload")
@@ -141,6 +144,10 @@ const getCSRFToken = async () => {
         } else {
           console.log('No token in response')
         }
+        
+        // Clear guest flag since this is a real signup
+        localStorage.removeItem("isGuest")
+        
         // Redirect to upload page
         router.push("/upload")
       } else {

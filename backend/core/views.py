@@ -277,37 +277,56 @@ class FootImageUploadView(APIView):
         print("Upload endpoint hit")
         print("Request FILES:", request.FILES)
         print("Request DATA:", request.data)
+        print("User authenticated:", request.user.is_authenticated)
         
-        # Handle both authenticated users and guests
-        user = request.user if request.user.is_authenticated else None
-        
-        serializer = FootImageSerializer(data=request.data)
-        if serializer.is_valid():
-            # For guests, user will be None - the serializer should handle this
-            instance = serializer.save(user=user)
-            try:
-                image_path = instance.image.path
-                # Get paper size from request, default to 'letter'
-                paper_size = request.data.get('paper_size', 'letter')
-                print(f"Using paper size: {paper_size}")
+        try:
+            # Handle both authenticated users and guests
+            user = request.user if request.user.is_authenticated else None
+            print(f"User for save: {user}")
+            
+            serializer = FootImageSerializer(data=request.data)
+            if serializer.is_valid():
+                print("Serializer is valid")
+                # For guests, user will be None - the serializer should handle this
+                instance = serializer.save(user=user)
+                print(f"Instance created with ID: {instance.id}")
                 
-                length, width, error_msg = process_foot_image(image_path, paper_size)
-                if error_msg:
+                try:
+                    image_path = instance.image.path
+                    print(f"Image path: {image_path}")
+                    
+                    # Get paper size from request, default to 'letter'
+                    paper_size = request.data.get('paper_size', 'letter')
+                    print(f"Using paper size: {paper_size}")
+                    
+                    length, width, error_msg = process_foot_image(image_path, paper_size)
+                    if error_msg:
+                        print(f"Processing error: {error_msg}")
+                        instance.status = 'error'
+                        instance.error_message = error_msg
+                    else:
+                        print(f"Processing success: {length}\" x {width}\"")
+                        instance.status = 'complete'
+                        instance.length_inches = length
+                        instance.width_inches = width
+                    instance.save()
+                    print("Instance updated and saved")
+                except Exception as e:
+                    print(f"Processing exception: {str(e)}")
                     instance.status = 'error'
-                    instance.error_message = error_msg
-                else:
-                    instance.status = 'complete'
-                    instance.length_inches = length
-                    instance.width_inches = width
-                instance.save()
-            except Exception as e:
-                instance.status = 'error'
-                instance.error_message = f"Unexpected error: {str(e)}"
-                instance.save()
+                    instance.error_message = f"Unexpected error: {str(e)}"
+                    instance.save()
 
-            return Response({ "measurement_id": instance.id }, status=status.HTTP_201_CREATED)
-        
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                return Response({ "measurement_id": instance.id }, status=status.HTTP_201_CREATED)
+            else:
+                print(f"Serializer errors: {serializer.errors}")
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                
+        except Exception as e:
+            print(f"Upload view exception: {str(e)}")
+            return Response({
+                "error": f"Server error: {str(e)}"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class FootImageDetailView(APIView):
