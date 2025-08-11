@@ -287,7 +287,6 @@ class FootImageUploadView(APIView):
             serializer = FootImageSerializer(data=request.data)
             if serializer.is_valid():
                 print("Serializer is valid")
-                # For guests, user will be None - the serializer should handle this
                 instance = serializer.save(user=user)
                 print(f"Instance created with ID: {instance.id}")
                 
