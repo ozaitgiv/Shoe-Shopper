@@ -103,13 +103,13 @@ export default function RecommendationsPage() {
     checkAuth()
   }, [])
 
-  // Load preferences and shoes when user is authenticated
+  // Load preferences and shoes when ready (either authenticated user or guest)
   useEffect(() => {
-    if (user) {
+    if (!isLoading) {
       loadSavedPreferences()
       loadAllShoes()
     }
-  }, [user])
+  }, [isLoading])
 
   // Apply filters and sorting whenever preferences, sorting, or shoes change
   useEffect(() => {
@@ -139,10 +139,19 @@ export default function RecommendationsPage() {
 
   const checkAuth = async () => {
     const token = localStorage.getItem("token")
-    if (!token) {
+    const isGuest = localStorage.getItem("isGuest") === "true"
+    
+    if (!token && !isGuest) {
       router.push("/")
       return
     }
+    
+    if (isGuest) {
+      // Guest user, no auth check needed
+      setIsLoading(false)
+      return
+    }
+    
     try {
       const response = await fetch(`${API_BASE_URL}/api/auth/user/`, {
         headers: {
@@ -171,15 +180,22 @@ export default function RecommendationsPage() {
 
     try {
       const token = localStorage.getItem("token")
+      const isGuest = localStorage.getItem("isGuest") === "true"
 
       // Get User Measurements - REAL API CALL
       let measurements = null
       try {
+        const headers: { [key: string]: string } = {
+          "Content-Type": "application/json",
+        }
+        
+        // Only add auth header if user is authenticated
+        if (token && !isGuest) {
+          headers.Authorization = `Token ${token}`
+        }
+        
         const measurementsResponse = await fetch(`${API_BASE_URL}/api/measurements/latest/`, {
-          headers: {
-            Authorization: `Token ${token}`,
-            "Content-Type": "application/json",
-          },
+          headers,
         })
 
         if (measurementsResponse.ok) {
@@ -202,11 +218,17 @@ export default function RecommendationsPage() {
 
       // Load recommendations from backend - REAL API CALL
       try {
+        const headers: { [key: string]: string } = {
+          "Content-Type": "application/json",
+        }
+        
+        // Only add auth header if user is authenticated
+        if (token && !isGuest) {
+          headers.Authorization = `Token ${token}`
+        }
+        
         const recommendationsResponse = await fetch(`${API_BASE_URL}/api/recommendations/`, {
-          headers: {
-            Authorization: `Token ${token}`,
-            "Content-Type": "application/json",
-          },
+          headers,
         })
 
         if (recommendationsResponse.ok) {
@@ -333,6 +355,8 @@ export default function RecommendationsPage() {
 
   // Get user initials for avatar
   const getUserInitials = () => {
+    const isGuest = localStorage.getItem("isGuest") === "true"
+    if (isGuest) return "G"
     if (!user) return "U"
     const firstInitial = user.first_name ? user.first_name[0] : user.username[0]
     const lastInitial = user.last_name ? user.last_name[0] : ""
@@ -341,6 +365,8 @@ export default function RecommendationsPage() {
 
   // Get user display name
   const getUserDisplayName = () => {
+    const isGuest = localStorage.getItem("isGuest") === "true"
+    if (isGuest) return "Guest"
     if (!user) return "User"
     if (user.first_name && user.last_name) {
       return `${user.first_name} ${user.last_name}`
@@ -422,24 +448,43 @@ export default function RecommendationsPage() {
                 <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg border border-gray-200 z-50">
                   <div className="px-4 py-3 border-b border-gray-100">
                     <p className="text-sm font-medium text-gray-900">{getUserDisplayName()}</p>
-                    <p className="text-xs text-gray-500">{user?.email}</p>
+                    <p className="text-xs text-gray-500">
+                      {localStorage.getItem("isGuest") === "true" ? "Guest User" : user?.email}
+                    </p>
                   </div>
                   <div className="py-1">
-                    <button
-                      onClick={() => router.push("/account")}
-                      className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                    >
-                      <User className="mr-2 h-4 w-4" />
-                      Account
-                    </button>
-                    <hr className="my-1" />
-                    <button
-                      onClick={handleLogout}
-                      className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                    >
-                      <LogOut className="mr-2 h-4 w-4" />
-                      Log out
-                    </button>
+                    {localStorage.getItem("isGuest") !== "true" && (
+                      <>
+                        <button
+                          onClick={() => router.push("/account")}
+                          className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        >
+                          <User className="mr-2 h-4 w-4" />
+                          Account
+                        </button>
+                        <hr className="my-1" />
+                      </>
+                    )}
+                    {localStorage.getItem("isGuest") === "true" ? (
+                      <button
+                        onClick={() => {
+                          localStorage.removeItem("isGuest")
+                          router.push("/")
+                        }}
+                        className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      >
+                        <LogOut className="mr-2 h-4 w-4" />
+                        Exit Guest Mode
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleLogout}
+                        className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      >
+                        <LogOut className="mr-2 h-4 w-4" />
+                        Log out
+                      </button>
+                    )}
                   </div>
                 </div>
               )}

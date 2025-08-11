@@ -505,13 +505,21 @@ def logout_view(request):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def recommendations(request):
     """Get shoe recommendations using real insole measurements"""
-    foot_image = FootImage.objects.filter(
-        user=request.user, 
-        status='complete'
-    ).order_by('-uploaded_at').first()
+    # Support both authenticated users and guests
+    if request.user.is_authenticated:
+        foot_image = FootImage.objects.filter(
+            user=request.user, 
+            status='complete'
+        ).order_by('-uploaded_at').first()
+    else:
+        # For guests, get the most recent processed image
+        foot_image = FootImage.objects.filter(
+            user__isnull=True,
+            status='complete'
+        ).order_by('-uploaded_at').first()
     
     if not foot_image or foot_image.length_inches is None or foot_image.width_inches is None:
         return Response({
@@ -567,10 +575,16 @@ def recommendations(request):
     })
   
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def get_latest_measurement(request):
     try:
-        latest = FootImage.objects.filter(user=request.user, status='complete').order_by('-uploaded_at').first()
+        # Support both authenticated users and guests
+        if request.user.is_authenticated:
+            latest = FootImage.objects.filter(user=request.user, status='complete').order_by('-uploaded_at').first()
+        else:
+            # For guests, get the most recent processed image
+            latest = FootImage.objects.filter(user__isnull=True, status='complete').order_by('-uploaded_at').first()
+        
         if not latest:
             return Response({"error": "No measurements found"}, status=status.HTTP_404_NOT_FOUND)
         return Response({
