@@ -223,5 +223,9 @@ if IS_RENDER or IS_RAILWAY:
                 'handlers': ['console'],
                 'level': 'INFO',
             },
+            'core': {
+                'handlers': ['console'],
+                'level': 'INFO',
+            },
         },
     }
