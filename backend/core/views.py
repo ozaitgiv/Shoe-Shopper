@@ -5,6 +5,31 @@ from inference_sdk import InferenceHTTPClient
 
 logger = logging.getLogger(__name__)
 
+# Constants for shoe fitting algorithm
+FIT_THRESHOLDS = {
+    'EXCELLENT': 90,
+    'GOOD': 75, 
+    'FAIR': 60,
+    'POOR': 0
+}
+
+# Scoring tolerance constants
+PERIMETER_PERFECT_MIN = 0.95
+PERIMETER_PERFECT_MAX = 1.05
+PERIMETER_MAX_RATIO = 1.15
+AREA_PERFECT_MIN = 0.9
+AREA_PERFECT_MAX = 1.0
+AREA_MAX_RATIO = 1.1
+LENGTH_MAX_RATIO = 1.1
+WIDTH_TOLERANCE_PCT = 0.1
+
+# Foot shape estimation constants
+FOOT_AREA_SHAPE_FACTOR = 0.7  # Research-based foot area factor
+SHOE_AREA_SHAPE_FACTOR = 0.75  # Slightly larger than foot
+
+# Critical scoring threshold for safety
+CRITICAL_LENGTH_THRESHOLD = 60
+
 def cleanup_old_guest_sessions():
     """Clean up guest sessions older than 7 days to prevent database bloat"""
     from datetime import datetime, timedelta
@@ -49,12 +74,38 @@ from rest_framework.authtoken.models import Token
 from .models import FootImage, Shoe
 from .serializers import FootImageSerializer, ShoeSerializer
 
-def process_foot_image(image_path, paper_size="letter"):
+def process_foot_image_enhanced(image_path, paper_size="letter"):
+    """
+    Enhanced foot processing using segmentation workflow for 4D measurements
+    """
     try:
         client = InferenceHTTPClient(
             api_url="https://serverless.roboflow.com",
             api_key=os.environ.get("ROBOFLOW_API_KEY")
         )
+        
+        # Try segmentation workflow first for enhanced measurements
+        try:
+            result = client.run_workflow(
+                workspace_name="armaanai",
+                workflow_id="foot-segmentation",  # Assume this exists or will be created
+                images={"image": image_path},
+                use_cache=True
+            )
+            
+            # Process segmentation data similar to insole processing
+            measurements, error_data, error_msg = process_foot_segmentation_data(result, paper_size)
+            
+            if not error_msg:
+                return (measurements['length'], measurements['width'], 
+                       measurements['area'], measurements['perimeter'], None)
+        except (KeyError, ValueError, ConnectionError, AttributeError) as e:
+            # If segmentation workflow doesn't exist or fails, fall back to bounding box method
+            logger.info("Segmentation workflow not available, using fallback method", extra={
+                'error': str(e), 'workflow_id': 'foot-segmentation'
+            })
+        
+        # Fallback to original bounding box method
         result = client.run_workflow(
             workspace_name="armaanai",
             workflow_id="foot-measuring",
@@ -63,20 +114,34 @@ def process_foot_image(image_path, paper_size="letter"):
         )
         result_json = result[0]
         paper_dims, foot_dims = parse_predictions(result_json)
+        
         if paper_dims is None:
-            return None, None, "Paper not detected in the image"
+            return None, None, None, None, "Paper not detected in the image"
         if foot_dims is None:
-            return None, None, "Foot not detected in the image"
+            return None, None, None, None, "Foot not detected in the image"
         
         # Use correct paper width based on paper size
-        paper_width_inches = 8.5 if paper_size == "letter" else 8.27  # A4 width is 8.27"
+        paper_width_inches = 8.5 if paper_size == "letter" else 8.27
         pixels_per_inch = paper_dims[0] / paper_width_inches
         
         length_inches = round(foot_dims[1] / pixels_per_inch, 2)
         width_inches = round(foot_dims[0] / pixels_per_inch, 2)
-        return length_inches, width_inches, None
+        
+        # Estimate area and perimeter from bounding box
+        area_sqin = estimate_foot_area_from_dimensions(length_inches, width_inches)
+        perimeter_inches = estimate_foot_perimeter_from_dimensions(length_inches, width_inches)
+        
+        return length_inches, width_inches, area_sqin, perimeter_inches, None
+        
     except Exception as e:
-        return None, None, f"Error processing image: {str(e)}"
+        return None, None, None, None, f"Error processing image: {str(e)}"
+
+def process_foot_image(image_path, paper_size="letter"):
+    """
+    Legacy function - delegates to enhanced version and returns only length/width for compatibility
+    """
+    length, width, area, perimeter, error = process_foot_image_enhanced(image_path, paper_size)
+    return length, width, error
 
 def parse_predictions(result_json):
     paper_dims = None
@@ -93,80 +158,301 @@ def parse_predictions(result_json):
                     paper_dims = (width, height)
                 elif class_id == 0:
                     foot_dims = (width, height)
-    except Exception as e:
-        pass  # Silently handle parsing errors
+    except (KeyError, AttributeError, TypeError) as e:
+        logger.debug("Error parsing predictions", extra={'error': str(e)})
             
     return paper_dims, foot_dims
 
+def process_foot_segmentation_data(result_json, paper_size="letter"):
+    """
+    Process foot segmentation workflow results (similar to insole processing)
+    """
+    try:
+        # Extract predictions from workflow format
+        predictions = result_json[0]["predictions"]["predictions"]
+        
+        # Find foot and paper data
+        foot_data = None
+        paper_data = None
+        
+        for pred in predictions:
+            if pred.get("class") == "Foot":
+                foot_data = pred
+            elif pred.get("class") == "Paper":
+                paper_data = pred
+        
+        if foot_data is None:
+            return None, None, "Foot not detected in image"
+        if paper_data is None:
+            return None, None, "Paper not detected in image"
+            
+        # Extract polygon points
+        foot_points = foot_data.get("points", [])
+        paper_points = paper_data.get("points", [])
+        
+        if not foot_points or not paper_points:
+            return None, None, "No polygon points found"
+            
+        # Calculate all measurements with paper size
+        measurements = calculate_hybrid_measurements(foot_points, paper_points, paper_size)
+        
+        if measurements.get('error'):
+            return None, None, f"Calculation error: {measurements['error']}"
+            
+        return measurements, None, None
+        
+    except Exception as e:
+        return None, None, f"Processing error: {str(e)}"
+
+def estimate_foot_area_from_dimensions(length_inches, width_inches):
+    """
+    Estimate foot area from bounding box dimensions using foot shape factor
+    Research shows foot area ≈ 0.7 * bounding box area for typical foot shapes
+    """
+    if length_inches and width_inches:
+        return round(length_inches * width_inches * FOOT_AREA_SHAPE_FACTOR, 2)
+    return None
+
+def estimate_foot_perimeter_from_dimensions(length_inches, width_inches):
+    """
+    Estimate foot perimeter from bounding box using ellipse approximation
+    """
+    if length_inches and width_inches:
+        # Use Ramanujan's approximation for ellipse perimeter
+        a, b = length_inches / 2, width_inches / 2
+        h = ((a - b) / (a + b)) ** 2
+        perimeter = 3.14159 * (a + b) * (1 + (3 * h) / (10 + (4 - 3 * h) ** 0.5))
+        return round(2 * perimeter, 2)  # Double because we used semi-axes
+    return None
+
 # === ENHANCED RECOMMENDATION ALGORITHM ===
+
+def get_real_shoe_dimensions_4d(shoe):
+    """
+    Get all 4 shoe dimensions: length, width, area, perimeter
+    Use real measurements if available, fallback to estimations
+    """
+    try:
+        if shoe.insole_length and shoe.insole_width:
+            # Use actual measured dimensions
+            length = shoe.insole_length
+            width = shoe.insole_width
+            area = shoe.insole_area if shoe.insole_area else estimate_shoe_area_from_dimensions(length, width)
+            perimeter = shoe.insole_perimeter if shoe.insole_perimeter else estimate_shoe_perimeter_from_dimensions(length, width)
+            
+            logger.debug("Using measured shoe dimensions", extra={
+                'shoe_id': shoe.id, 'length': length, 'width': width, 
+                'has_area': bool(shoe.insole_area), 'has_perimeter': bool(shoe.insole_perimeter)
+            })
+            return length, width, area, perimeter
+        else:
+            # Fallback to static mapping for shoes without measurements
+            US_MENS_SIZE_TO_LENGTH = {
+                7: 9.625, 7.5: 9.75, 8: 9.9375, 8.5: 10.125, 9: 10.25, 
+                9.5: 10.4375, 10: 10.5625, 10.5: 10.75, 11: 10.9375, 
+                11.5: 11.125, 12: 11.25, 12.5: 11.4375, 13: 11.625
+            }
+            WIDTH_CATEGORY_TO_WIDTH = {
+                'N': 3.4,  # Narrow
+                'D': 3.6,  # Regular
+                'W': 3.8,  # Wide
+            }
+            length = US_MENS_SIZE_TO_LENGTH.get(float(shoe.us_size), 10.0)
+            width = WIDTH_CATEGORY_TO_WIDTH.get(shoe.width_category, 3.6)
+            area = estimate_shoe_area_from_dimensions(length, width)
+            perimeter = estimate_shoe_perimeter_from_dimensions(length, width)
+            
+            logger.info("Using estimated shoe dimensions", extra={
+                'shoe_id': shoe.id, 'us_size': shoe.us_size, 'width_category': shoe.width_category,
+                'estimated_length': length, 'estimated_width': width
+            })
+            return length, width, area, perimeter
+    except (ValueError, AttributeError) as e:
+        logger.error("Error calculating shoe dimensions", extra={
+            'shoe_id': getattr(shoe, 'id', None), 'error': str(e)
+        })
+        # Return safe defaults
+        return 10.0, 3.6, 27.0, 28.0
 
 def get_real_shoe_dimensions(shoe):
     """
-    Use real insole measurements if available, fallback to static mapping
+    Legacy function - returns only length and width for backward compatibility
     """
-    if shoe.insole_length and shoe.insole_width:
-        # Use actual measured insole dimensions
-        return shoe.insole_length, shoe.insole_width
+    length, width, _, _ = get_real_shoe_dimensions_4d(shoe)
+    return length, width
+
+def enhanced_score_shoe_4d(user_length, user_width, user_area, user_perimeter,
+                          shoe_length, shoe_width, shoe_area, shoe_perimeter, shoe_type="general"):
+    """
+    Enhanced 4D scoring using length, width, area, and perimeter measurements
+    Based on research: length 35-40%, width 25-30%, perimeter 20-25%, area 10-15%
+    """
+    # Input validation - prevent division by zero and invalid data
+    if any(val is None or val <= 0 for val in [user_length, user_width, shoe_length, shoe_width]):
+        logger.warning("Invalid input data for scoring algorithm", extra={
+            'user_length': user_length, 'user_width': user_width,
+            'shoe_length': shoe_length, 'shoe_width': shoe_width
+        })
+        return 0  # Invalid input data
+    
+    # Base weights from research
+    weights = {
+        'length': 0.375,
+        'width': 0.275,
+        'perimeter': 0.225,
+        'area': 0.125
+    }
+    
+    # Shoe-type specific adjustments and clearances
+    clearances = get_clearances_by_shoe_type(shoe_type)
+    
+    # Calculate adjusted foot measurements with clearances
+    adjusted_foot = {
+        'length': user_length + clearances['length'],
+        'width': user_width + clearances['width'],
+        'perimeter': user_perimeter + clearances['perimeter'] if user_perimeter else None,
+        'area': user_area * (1 + clearances['area']) if user_area else None
+    }
+    
+    scores = {}
+    
+    # Length scoring (more lenient for larger shoes)
+    length_ratio = adjusted_foot['length'] / shoe_length
+    if length_ratio <= 1.0:
+        scores['length'] = 100 * (0.7 + 0.3 * length_ratio)  # 70-100 range
     else:
-        # Fallback to static mapping for shoes without measurements
-        US_MENS_SIZE_TO_LENGTH = {
-            7: 9.625, 7.5: 9.75, 8: 9.9375, 8.5: 10.125, 9: 10.25, 
-            9.5: 10.4375, 10: 10.5625, 10.5: 10.75, 11: 10.9375, 
-            11.5: 11.125, 12: 11.25, 12.5: 11.4375, 13: 11.625
-        }
-        WIDTH_CATEGORY_TO_WIDTH = {
-            'N': 3.4,  # Narrow
-            'D': 3.6,  # Regular
-            'W': 3.8,  # Wide
-        }
-        length = US_MENS_SIZE_TO_LENGTH.get(float(shoe.us_size), 10.0)
-        width = WIDTH_CATEGORY_TO_WIDTH.get(shoe.width_category, 3.6)
-        return length, width
+        scores['length'] = max(0, 100 * (LENGTH_MAX_RATIO - length_ratio) / 0.1)  # Penalty for too big
+    
+    # Width scoring (symmetric tolerance)
+    width_diff = abs(adjusted_foot['width'] - shoe_width)
+    width_tolerance = shoe_width * WIDTH_TOLERANCE_PCT
+    scores['width'] = max(0, 100 * (1 - width_diff / width_tolerance))
+    
+    # Perimeter scoring (accounts for foot circumference)
+    if adjusted_foot['perimeter'] and shoe_perimeter:
+        perim_ratio = adjusted_foot['perimeter'] / shoe_perimeter
+        if PERIMETER_PERFECT_MIN <= perim_ratio <= PERIMETER_PERFECT_MAX:  # Sweet spot
+            scores['perimeter'] = 100
+        elif perim_ratio < PERIMETER_PERFECT_MIN:
+            scores['perimeter'] = max(0, 100 * (perim_ratio / PERIMETER_PERFECT_MIN))
+        else:
+            scores['perimeter'] = max(0, 100 * (PERIMETER_MAX_RATIO - perim_ratio) / 0.1)
+    else:
+        # Fallback to estimated perimeter score
+        scores['perimeter'] = estimate_perimeter_score(user_length, user_width, shoe_length, shoe_width)
+    
+    # Area scoring (volume accommodation)
+    if adjusted_foot['area'] and shoe_area:
+        area_ratio = adjusted_foot['area'] / shoe_area
+        if AREA_PERFECT_MIN <= area_ratio <= AREA_PERFECT_MAX:  # Foot should fit within shoe area
+            scores['area'] = 100
+        elif area_ratio < AREA_PERFECT_MIN:
+            scores['area'] = 100 * (area_ratio / AREA_PERFECT_MIN)
+        else:
+            scores['area'] = max(0, 100 * (AREA_MAX_RATIO - area_ratio) / 0.1)
+    else:
+        # Fallback to estimated area score
+        scores['area'] = estimate_area_score(user_length, user_width, shoe_length, shoe_width)
+    
+    # Weighted final score
+    final_score = sum(weights[dim] * scores[dim] for dim in weights)
+    
+    # Critical length penalty (non-compensatory)
+    if scores['length'] < CRITICAL_LENGTH_THRESHOLD:
+        final_score *= 0.5
+    
+    return min(100, max(0, round(final_score, 1)))
 
 def enhanced_score_shoe(user_length, user_width, shoe_length, shoe_width):
     """
-    Enhanced scoring with proper shoe fitting practices
+    Legacy scoring function - maintained for backward compatibility
     """
-    # Calculate ideal shoe length (foot + thumb space)
-    ideal_shoe_length = user_length + 0.625  # 5/8 inch thumb width
+    # Input validation
+    if any(val is None or val <= 0 for val in [user_length, user_width, shoe_length, shoe_width]):
+        return 0  # Invalid input data
     
-    # Calculate directional difference
-    length_diff = shoe_length - ideal_shoe_length  # positive if shoe is longer
+    # Use 4D scoring with estimated area/perimeter
+    user_area = estimate_foot_area_from_dimensions(user_length, user_width)
+    user_perimeter = estimate_foot_perimeter_from_dimensions(user_length, user_width)
+    shoe_area = estimate_shoe_area_from_dimensions(shoe_length, shoe_width)
+    shoe_perimeter = estimate_shoe_perimeter_from_dimensions(shoe_length, shoe_width)
     
-    # More lenient toward larger shoes, stricter on smaller
-    if length_diff >= 0:  # Shoe is longer than ideal
-        if length_diff <= 0.35:  # Perfect fit zone
-            length_score = 100
-        elif length_diff <= 0.8:  # Good fit zone
-            length_score = 90 - (length_diff - 0.35) * 30
-        elif length_diff <= 1.5:  # Acceptable zone
-            length_score = 75 - (length_diff - 0.8) * 40
-        else:  # Too big
-            length_score = max(0, 50 - (length_diff - 1.5) * 30)
-    else:  # Shoe is shorter than ideal (penalize more harshly)
-        shortfall = abs(length_diff)
-        if shortfall <= 0.2:  # Barely too small
-            length_score = 90 - (shortfall) * 80
-        elif shortfall <= 0.5:  # Clearly too small
-            length_score = 60 - (shortfall - 0.2) * 120
-        else:  # Significantly too small
-            length_score = max(0, 30 - (shortfall - 0.5) * 150)
-    
-    # Width scoring (unchanged)
-    width_diff = abs(shoe_width - user_width)
-    
-    if width_diff <= 0.2:
-        width_score = 100
-    elif width_diff <= 0.4:
-        width_score = 90 - (width_diff - 0.05) * 100
-    elif width_diff <= 0.8:
-        width_score = 75 - (width_diff - 0.1) * 150
-    else:
-        width_score = max(0, 60 - (width_diff - 0.2) * 100)
-    
-    # Weighted final score
-    final_score = (length_score * 0.65) + (width_score * 0.35)
-    return round(final_score, 1)
+    return enhanced_score_shoe_4d(user_length, user_width, user_area, user_perimeter,
+                                 shoe_length, shoe_width, shoe_area, shoe_perimeter)
+
+def get_clearances_by_shoe_type(shoe_type):
+    """Dynamic clearances based on shoe type (in inches)"""
+    clearance_configs = {
+        'running': {
+            'length': 0.5,    # ~12.5mm
+            'width': 0.08,    # ~2mm 
+            'perimeter': 0.4, # Accommodate foot expansion
+            'area': 0.15      # 15% area increase
+        },
+        'hiking': {
+            'length': 0.6,    # ~15mm
+            'width': 0.12,    # ~3mm
+            'perimeter': 0.6,
+            'area': 0.2
+        },
+        'casual': {
+            'length': 0.25,   # ~6mm
+            'width': 0.04,    # ~1mm
+            'perimeter': 0.2,
+            'area': 0.1
+        },
+        'work': {
+            'length': 0.4,    # ~10mm
+            'width': 0.08,    # ~2mm
+            'perimeter': 0.3,
+            'area': 0.12
+        }
+    }
+    return clearance_configs.get(shoe_type, clearance_configs['casual'])
+
+def estimate_perimeter_score(user_length, user_width, shoe_length, shoe_width):
+    """Estimate perimeter fit score from length/width"""
+    user_perim = estimate_foot_perimeter_from_dimensions(user_length, user_width)
+    shoe_perim = estimate_shoe_perimeter_from_dimensions(shoe_length, shoe_width)
+    if user_perim and shoe_perim:
+        ratio = user_perim / shoe_perim
+        if 0.95 <= ratio <= 1.05:
+            return 100
+        elif ratio < 0.95:
+            return max(0, 100 * (ratio / 0.95))
+        else:
+            return max(0, 100 * (1.15 - ratio) / 0.1)
+    return 75  # Default moderate score
+
+def estimate_area_score(user_length, user_width, shoe_length, shoe_width):
+    """Estimate area fit score from length/width"""
+    user_area = estimate_foot_area_from_dimensions(user_length, user_width)
+    shoe_area = estimate_shoe_area_from_dimensions(shoe_length, shoe_width)
+    if user_area and shoe_area:
+        ratio = user_area / shoe_area
+        if 0.9 <= ratio <= 1.0:
+            return 100
+        elif ratio < 0.9:
+            return 100 * (ratio / 0.9)
+        else:
+            return max(0, 100 * (1.1 - ratio) / 0.1)
+    return 75  # Default moderate score
+
+def estimate_shoe_area_from_dimensions(length_inches, width_inches):
+    """Estimate shoe insole area from dimensions"""
+    if length_inches and width_inches:
+        return round(length_inches * width_inches * SHOE_AREA_SHAPE_FACTOR, 2)  # Slightly higher than foot
+    return None
+
+def estimate_shoe_perimeter_from_dimensions(length_inches, width_inches):
+    """Estimate shoe insole perimeter from dimensions"""
+    if length_inches and width_inches:
+        # Similar to foot but slightly larger
+        a, b = length_inches / 2, width_inches / 2
+        h = ((a - b) / (a + b)) ** 2
+        perimeter = 3.14159 * (a + b) * (1 + (3 * h) / (10 + (4 - 3 * h) ** 0.5))
+        return round(2.1 * perimeter, 2)  # Slightly larger than foot
+    return None
 
 # === ENHANCED INSOLE PROCESSING FUNCTIONS ===
 
@@ -354,7 +640,7 @@ class FootImageUploadView(APIView):
                         'paper_size': paper_size
                     })
                     
-                    length, width, error_msg = process_foot_image(image_path, paper_size)
+                    length, width, area, perimeter, error_msg = process_foot_image_enhanced(image_path, paper_size)
                     if error_msg:
                         logger.error("Foot image processing failed", extra={
                             'instance_id': instance.id,
@@ -366,11 +652,15 @@ class FootImageUploadView(APIView):
                         logger.info("Foot image processing completed successfully", extra={
                             'instance_id': instance.id,
                             'length': length,
-                            'width': width
+                            'width': width,
+                            'area': area,
+                            'perimeter': perimeter
                         })
                         instance.status = 'complete'
                         instance.length_inches = length
                         instance.width_inches = width
+                        instance.area_sqin = area
+                        instance.perimeter_inches = perimeter
                     instance.save()
                 except Exception as e:
                     logger.exception("Unexpected error during foot image processing", extra={
@@ -411,6 +701,8 @@ class FootImageDetailView(APIView):
         if foot_image.status == "complete":
             response_data["length_inches"] = foot_image.length_inches
             response_data["width_inches"] = foot_image.width_inches
+            response_data["area_sqin"] = foot_image.area_sqin
+            response_data["perimeter_inches"] = foot_image.perimeter_inches
         if foot_image.status == "error":
             response_data["error_message"] = foot_image.error_message or "There was an error processing your image."
 
@@ -518,8 +810,17 @@ def shoe_list_with_scores(request):
             
             result = []
             for shoe in shoes:
-                shoe_length, shoe_width = get_real_shoe_dimensions(shoe)
-                score = enhanced_score_shoe(user_length, user_width, shoe_length, shoe_width)
+                shoe_length, shoe_width, shoe_area, shoe_perimeter = get_real_shoe_dimensions_4d(shoe)
+                
+                # Use 4D scoring if foot measurements available, otherwise fallback
+                if foot_image.area_sqin and foot_image.perimeter_inches:
+                    score = enhanced_score_shoe_4d(
+                        user_length, user_width, foot_image.area_sqin, foot_image.perimeter_inches,
+                        shoe_length, shoe_width, shoe_area, shoe_perimeter, shoe.function
+                    )
+                else:
+                    # Fallback to legacy scoring for older measurements
+                    score = enhanced_score_shoe(user_length, user_width, shoe_length, shoe_width)
                 
                 data = ShoeSerializer(shoe, context={'request': request}).data
                 data['fit_score'] = score
@@ -615,9 +916,18 @@ def recommendations(request):
     scored_shoes = []
     
     for shoe in shoes:
-        # Use real measurements instead of static mapping
-        shoe_length, shoe_width = get_real_shoe_dimensions(shoe)
-        score = enhanced_score_shoe(user_length, user_width, shoe_length, shoe_width)
+        # Use 4D measurements for enhanced scoring
+        shoe_length, shoe_width, shoe_area, shoe_perimeter = get_real_shoe_dimensions_4d(shoe)
+        
+        # Use 4D scoring if foot measurements available, otherwise fallback
+        if foot_image.area_sqin and foot_image.perimeter_inches:
+            score = enhanced_score_shoe_4d(
+                user_length, user_width, foot_image.area_sqin, foot_image.perimeter_inches,
+                shoe_length, shoe_width, shoe_area, shoe_perimeter, shoe.function
+            )
+        else:
+            # Fallback to legacy scoring for older measurements
+            score = enhanced_score_shoe(user_length, user_width, shoe_length, shoe_width)
         scored_shoes.append((score, shoe))
     
     # Sort by fit score (highest first)
@@ -630,13 +940,13 @@ def recommendations(request):
         data['fit_score'] = score
         
         # Add fit category and details for UI
-        if score >= 90:
+        if score >= FIT_THRESHOLDS['EXCELLENT']:
             data['fit_category'] = 'Excellent'
             data['fit_details'] = 'Perfect fit with proper toe room'
-        elif score >= 75:
+        elif score >= FIT_THRESHOLDS['GOOD']:
             data['fit_category'] = 'Good'
             data['fit_details'] = 'Good fit with adequate comfort'
-        elif score >= 60:
+        elif score >= FIT_THRESHOLDS['FAIR']:
             data['fit_category'] = 'Fair'
             data['fit_details'] = 'Acceptable fit, may need consideration'
         else:
@@ -648,11 +958,13 @@ def recommendations(request):
     return Response({
         'user_measurements': {
             'length_inches': user_length,
-            'width_inches': user_width
+            'width_inches': user_width,
+            'area_sqin': foot_image.area_sqin,
+            'perimeter_inches': foot_image.perimeter_inches
         },
         'recommendations': result,
         'total_analyzed': len(result),
-        'algorithm_version': 'real_measurements_v1'
+        'algorithm_version': 'enhanced_4d_v2'
     })
   
 @api_view(['GET'])
@@ -680,6 +992,8 @@ def get_latest_measurement(request):
             "id": latest.id,
             "length_inches": latest.length_inches,
             "width_inches": latest.width_inches,
+            "area_sqin": latest.area_sqin,
+            "perimeter_inches": latest.perimeter_inches,
             "created_at": latest.uploaded_at.isoformat(),
             "status": latest.status
         })

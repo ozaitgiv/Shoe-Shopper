@@ -14,6 +14,8 @@ class FootImage(models.Model):
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='processing')
     length_inches = models.FloatField(null=True, blank=True)
     width_inches = models.FloatField(null=True, blank=True)
+    area_sqin = models.FloatField(null=True, blank=True, help_text="Foot area in square inches")
+    perimeter_inches = models.FloatField(null=True, blank=True, help_text="Foot perimeter in inches")
     error_message = models.TextField(null=True, blank=True)
     
     def __str__(self):
