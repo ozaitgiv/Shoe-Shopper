@@ -76,7 +76,7 @@ from .serializers import FootImageSerializer, ShoeSerializer
 
 def process_foot_image_enhanced(image_path, paper_size="letter"):
     """
-    Enhanced foot processing using segmentation workflow for 4D measurements
+    Enhanced foot processing - tries segmentation workflow first, falls back to bounding box
     """
     try:
         client = InferenceHTTPClient(
@@ -84,7 +84,37 @@ def process_foot_image_enhanced(image_path, paper_size="letter"):
             api_key=os.environ.get("ROBOFLOW_API_KEY")
         )
         
-        # Use the working foot-measuring workflow (foot-segmentation doesn't exist yet)
+        # Try using insole-measuring workflow for feet (polygon segmentation)
+        try:
+            result = client.run_workflow(
+                workspace_name="armaanai",
+                workflow_id="insole-measuring", 
+                images={"image": image_path},
+                use_cache=True
+            )
+            
+            # Process with foot-specific class detection (modify insole logic)
+            measurements, error_data, error_msg = process_foot_with_insole_workflow(result, paper_size)
+            
+            if not error_msg and measurements:
+                logger.info("SUCCESS: Using polygon segmentation for real foot area/perimeter", extra={
+                    'length': measurements['length'],
+                    'width': measurements['width'], 
+                    'area': measurements['area'],
+                    'perimeter': measurements['perimeter']
+                })
+                return (measurements['length'], measurements['width'], 
+                        measurements['area'], measurements['perimeter'], None)
+            else:
+                logger.info("Polygon segmentation failed, trying bounding box fallback", extra={
+                    'error': error_msg
+                })
+        except Exception as seg_error:
+            logger.info("Segmentation workflow failed, using bounding box fallback", extra={
+                'error': str(seg_error)
+            })
+        
+        # Fallback to existing foot-measuring workflow (bounding box detection)
         result = client.run_workflow(
             workspace_name="armaanai",
             workflow_id="foot-measuring",
@@ -109,6 +139,13 @@ def process_foot_image_enhanced(image_path, paper_size="letter"):
         # Estimate area and perimeter from bounding box
         area_sqin = estimate_foot_area_from_dimensions(length_inches, width_inches)
         perimeter_inches = estimate_foot_perimeter_from_dimensions(length_inches, width_inches)
+        
+        logger.info("Using bounding box fallback with estimated measurements", extra={
+            'length': length_inches,
+            'width': width_inches,
+            'area': area_sqin, 
+            'perimeter': perimeter_inches
+        })
         
         return length_inches, width_inches, area_sqin, perimeter_inches, None
         
@@ -141,6 +178,55 @@ def parse_predictions(result_json):
         logger.debug("Error parsing predictions", extra={'error': str(e)})
             
     return paper_dims, foot_dims
+
+def process_foot_with_insole_workflow(result, paper_size="letter"):
+    """
+    Process foot image using insole-measuring workflow
+    Looks for 'Foot' class instead of 'Insole' class
+    """
+    try:
+        # Extract predictions from workflow format  
+        predictions = result[0]["predictions"]["predictions"]
+        
+        logger.debug(f"Processing {len(predictions)} predictions for foot")
+        
+        # Find foot and paper data
+        foot_data = None
+        paper_data = None
+        
+        for pred in predictions:
+            class_name = pred.get("class")
+            logger.debug(f"Found prediction with class: {class_name}")
+            
+            if pred.get("class") in ["Foot", "foot", "Insole", "insole"]:  # Accept multiple class names
+                foot_data = pred
+                logger.debug("Found Foot/Insole data for foot processing")
+            elif pred.get("class") in ["Paper", "paper"]:
+                paper_data = pred
+                logger.debug("Found Paper data")
+        
+        if foot_data is None:
+            return None, None, "Foot not detected in image"
+        if paper_data is None:
+            return None, None, "Paper not detected in image"
+            
+        # Extract polygon points
+        foot_points = foot_data.get("points", [])
+        paper_points = paper_data.get("points", [])
+        
+        if not foot_points or not paper_points:
+            return None, None, "No polygon points found"
+            
+        # Use existing hybrid measurements calculation
+        measurements = calculate_hybrid_measurements(foot_points, paper_points, paper_size)
+        
+        if measurements.get('error'):
+            return None, None, f"Calculation error: {measurements['error']}"
+            
+        return measurements, None, None
+        
+    except Exception as e:
+        return None, None, f"Processing error: {str(e)}"
 
 def process_foot_segmentation_data(result_json, paper_size="letter"):
     """
@@ -806,13 +892,22 @@ def shoe_list_with_scores(request):
                 shoe_length, shoe_width, shoe_area, shoe_perimeter = get_real_shoe_dimensions_4d(shoe)
                 
                 # Use 4D scoring if foot measurements available, otherwise fallback
-                if foot_image.area_sqin and foot_image.perimeter_inches:
+                if (foot_image.area_sqin is not None and foot_image.area_sqin > 0 and 
+                    foot_image.perimeter_inches is not None and foot_image.perimeter_inches > 0):
+                    logger.info("Using REAL 4D measurements for scoring", extra={
+                        'user_area': foot_image.area_sqin,
+                        'user_perimeter': foot_image.perimeter_inches
+                    })
                     score = enhanced_score_shoe_4d(
                         user_length, user_width, foot_image.area_sqin, foot_image.perimeter_inches,
                         shoe_length, shoe_width, shoe_area, shoe_perimeter, shoe.function
                     )
                 else:
-                    # Fallback to legacy scoring for older measurements
+                    logger.info("Using ESTIMATED 4D measurements for scoring", extra={
+                        'area_available': foot_image.area_sqin,
+                        'perimeter_available': foot_image.perimeter_inches
+                    })
+                    # Fallback to legacy scoring for older measurements (which estimates area/perimeter)
                     score = enhanced_score_shoe(user_length, user_width, shoe_length, shoe_width)
                 
                 data = ShoeSerializer(shoe, context={'request': request}).data
@@ -913,13 +1008,22 @@ def recommendations(request):
         shoe_length, shoe_width, shoe_area, shoe_perimeter = get_real_shoe_dimensions_4d(shoe)
         
         # Use 4D scoring if foot measurements available, otherwise fallback
-        if foot_image.area_sqin and foot_image.perimeter_inches:
+        if (foot_image.area_sqin is not None and foot_image.area_sqin > 0 and 
+            foot_image.perimeter_inches is not None and foot_image.perimeter_inches > 0):
+            logger.info("Using REAL 4D measurements for recommendations", extra={
+                'user_area': foot_image.area_sqin,
+                'user_perimeter': foot_image.perimeter_inches
+            })
             score = enhanced_score_shoe_4d(
                 user_length, user_width, foot_image.area_sqin, foot_image.perimeter_inches,
                 shoe_length, shoe_width, shoe_area, shoe_perimeter, shoe.function
             )
         else:
-            # Fallback to legacy scoring for older measurements
+            logger.info("Using ESTIMATED 4D measurements for recommendations", extra={
+                'area_available': foot_image.area_sqin,
+                'perimeter_available': foot_image.perimeter_inches
+            })
+            # Fallback to legacy scoring for older measurements (which estimates area/perimeter)
             score = enhanced_score_shoe(user_length, user_width, shoe_length, shoe_width)
         scored_shoes.append((score, shoe))
     
