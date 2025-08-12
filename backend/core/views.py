@@ -5,30 +5,46 @@ from inference_sdk import InferenceHTTPClient
 
 logger = logging.getLogger(__name__)
 
-# Constants for shoe fitting algorithm
+# UPDATED FIT THRESHOLDS - Calibrated for improved penalty functions
+# Adjusted to provide more realistic categorization with new algorithm
 FIT_THRESHOLDS = {
-    'EXCELLENT': 90,
-    'GOOD': 75, 
-    'FAIR': 60,
-    'POOR': 0
+    'EXCELLENT': 85,  # Lowered from 90 - reflects realistic scoring
+    'GOOD': 65,       # Lowered from 75 - accounts for measurement variations  
+    'FAIR': 45,       # Lowered from 60 - allows for minor compromises
+    'POOR': 0         # Below 45 indicates significant fit issues
 }
 
-# Scoring tolerance constants
-PERIMETER_PERFECT_MIN = 0.95
-PERIMETER_PERFECT_MAX = 1.05
-PERIMETER_MAX_RATIO = 1.15
-AREA_PERFECT_MIN = 0.9
-AREA_PERFECT_MAX = 1.0
-AREA_MAX_RATIO = 1.1
-LENGTH_MAX_RATIO = 1.15
-WIDTH_TOLERANCE_PCT = 0.1
+# IMPROVED SCORING CONSTANTS - Research-based with smooth penalty curves
+# These replace harsh binary thresholds with graduated tolerance zones
+
+# Perimeter scoring zones (foot circumference variations)
+PERIMETER_PERFECT_MIN = 0.90     # 10% loose - still excellent
+PERIMETER_PERFECT_MAX = 1.08     # 8% tight - extended perfect zone
+PERIMETER_TIGHT_THRESHOLD = 1.12 # 12% tight - getting uncomfortable
+PERIMETER_MAX_RATIO = 1.18       # 18% tight - maximum wearable
+
+# Area scoring zones (foot volume accommodation)
+AREA_PERFECT_MIN = 0.88          # 12% extra space - comfortable
+AREA_PERFECT_MAX = 1.02          # 2% tight - still excellent
+AREA_TIGHT_THRESHOLD = 1.08      # 8% tight - getting snug
+AREA_MAX_RATIO = 1.15            # 15% tight - maximum accommodation
+
+# Length scoring zones (toe room and overall fit)
+LENGTH_TIGHT_THRESHOLD = 1.02    # 2% tight - gentle penalty zone
+LENGTH_MODERATE_THRESHOLD = 1.05 # 5% tight - moderate penalty zone
+LENGTH_MAX_RATIO = 1.15          # 15% tight - maximum ratio
+
+# Width scoring zones (foot width tolerance)
+WIDTH_PERFECT_THRESHOLD = 0.05   # 5% difference - perfect zone
+WIDTH_GOOD_THRESHOLD = 0.10      # 10% difference - good zone (was 0 score before)
+WIDTH_ACCEPTABLE_THRESHOLD = 0.15 # 15% difference - acceptable zone
+WIDTH_MAX_THRESHOLD = 0.20       # 20% difference - maximum tolerance
 
 # Foot shape estimation constants
 FOOT_AREA_SHAPE_FACTOR = 0.7  # Research-based foot area factor
 SHOE_AREA_SHAPE_FACTOR = 0.75  # Slightly larger than foot
 
-# Critical scoring threshold for safety
-CRITICAL_LENGTH_THRESHOLD = 40
+# Removed CRITICAL_LENGTH_THRESHOLD - using smooth penalty curves instead
 
 def cleanup_old_guest_sessions():
     """Clean up guest sessions older than 7 days to prevent database bloat"""
@@ -349,8 +365,43 @@ def get_real_shoe_dimensions(shoe):
 def enhanced_score_shoe_4d(user_length, user_width, user_area, user_perimeter,
                           shoe_length, shoe_width, shoe_area, shoe_perimeter, shoe_type="general"):
     """
-    Enhanced 4D scoring using length, width, area, and perimeter measurements
-    Based on research: length 35-40%, width 25-30%, perimeter 20-25%, area 10-15%
+    Enhanced 4D scoring using length, width, area, and perimeter measurements.
+    
+    This function implements research-based shoe fitting with smooth penalty curves
+    instead of harsh binary thresholds. Provides realistic fit scores by considering
+    all four critical dimensions of shoe fit.
+    
+    Args:
+        user_length (float): User's foot length in inches
+        user_width (float): User's foot width in inches  
+        user_area (float): User's foot area in square inches (can be None)
+        user_perimeter (float): User's foot perimeter in inches (can be None)
+        shoe_length (float): Shoe insole length in inches
+        shoe_width (float): Shoe insole width in inches
+        shoe_area (float): Shoe insole area in square inches (can be None)
+        shoe_perimeter (float): Shoe insole perimeter in inches (can be None)
+        shoe_type (str): Type of shoe for clearance adjustment
+                        ('casual', 'running', 'hiking', 'work', 'general')
+    
+    Returns:
+        float: Fit score from 0-100, where:
+               85+ = Excellent fit
+               65+ = Good fit  
+               45+ = Fair fit
+               <45 = Poor fit
+    
+    Research-based weights:
+        - Length: 37.5% (most critical for comfort and safety)
+        - Width: 27.5% (critical for comfort and foot health)
+        - Perimeter: 22.5% (accounts for foot circumference variations)
+        - Area: 12.5% (accounts for overall foot volume)
+    
+    Improvements over legacy algorithm:
+        - Smooth penalty curves instead of harsh binary thresholds
+        - Extended tolerance zones (10% width difference = 70 score vs 0)
+        - Gradual length penalties (2% tight = 80+ score vs severe penalty)
+        - No sudden score drops for minor measurement variations
+        - Better handling of None values with estimation fallbacks
     """
     # Input validation - prevent division by zero and invalid data
     if any(val is None or val <= 0 for val in [user_length, user_width, shoe_length, shoe_width]):
@@ -381,57 +432,126 @@ def enhanced_score_shoe_4d(user_length, user_width, user_area, user_perimeter,
     
     scores = {}
     
-    # Length scoring (more gradual penalties)
+    # IMPROVED LENGTH SCORING: Smooth curves instead of harsh penalties
+    # Length is most critical dimension - affects toe room and overall comfort
     length_ratio = adjusted_foot['length'] / shoe_length
-    if length_ratio <= 1.0:
-        scores['length'] = 100 * (0.7 + 0.3 * length_ratio)  # 70-100 range
-    elif length_ratio <= 1.05:
-        # Gentle penalty for slightly oversized feet (100-70 range)
-        scores['length'] = 100 - (length_ratio - 1.0) * 600
+    if length_ratio <= 0.95:
+        # Shoe too big - gentle penalty for loose fit
+        scores['length'] = 100 * (0.85 + 0.15 * (length_ratio / 0.95))  # 85-100 range
+    elif length_ratio <= 1.0:
+        # Good fit range - high scores
+        scores['length'] = 100 * (0.95 + 0.05 * length_ratio)  # 95-100 range
+    elif length_ratio <= LENGTH_TIGHT_THRESHOLD:  # 1.02
+        # Tight but acceptable - gentle penalty
+        excess = length_ratio - 1.0
+        scores['length'] = 95 - (excess / 0.02) * 15  # 95-80 range
+    elif length_ratio <= LENGTH_MODERATE_THRESHOLD:  # 1.05
+        # Getting tight - moderate penalty
+        excess = length_ratio - LENGTH_TIGHT_THRESHOLD
+        scores['length'] = 80 - (excess / 0.03) * 25  # 80-55 range
+    elif length_ratio <= 1.10:
+        # Too tight - steep penalty but not zero
+        excess = length_ratio - LENGTH_MODERATE_THRESHOLD
+        scores['length'] = 55 - (excess / 0.05) * 35  # 55-20 range
     else:
-        # Steeper penalty beyond 5% overage, starting from 70
-        penalty_range = LENGTH_MAX_RATIO - 1.05  # 0.1
-        remaining_ratio = length_ratio - 1.05
-        scores['length'] = max(0, 70 - (remaining_ratio / penalty_range) * 70)
+        # Dangerously tight - very low but not zero (allows for measurement errors)
+        excess = min(length_ratio - 1.10, 0.05)  # Cap at 15% overage
+        scores['length'] = max(5, 20 - (excess / 0.05) * 15)  # 20-5 range
     
-    # Width scoring (symmetric tolerance)
+    # IMPROVED WIDTH SCORING: Extended tolerance zones
+    # Old algorithm: 10% width difference = 0 score
+    # New algorithm: 10% width difference = 70 score (Good category)
     width_diff = abs(adjusted_foot['width'] - shoe_width)
-    width_tolerance = shoe_width * WIDTH_TOLERANCE_PCT
-    scores['width'] = max(0, 100 * (1 - width_diff / width_tolerance))
+    width_diff_ratio = width_diff / shoe_width
     
-    # Perimeter scoring (accounts for foot circumference)
+    if width_diff_ratio <= WIDTH_PERFECT_THRESHOLD:  # 5%
+        # Perfect fit zone
+        scores['width'] = 100 - width_diff_ratio * 200  # 100-90 range
+    elif width_diff_ratio <= WIDTH_GOOD_THRESHOLD:  # 10%
+        # Good fit zone  
+        excess = width_diff_ratio - WIDTH_PERFECT_THRESHOLD
+        scores['width'] = 90 - (excess / 0.05) * 20  # 90-70 range
+    elif width_diff_ratio <= WIDTH_ACCEPTABLE_THRESHOLD:  # 15%
+        # Acceptable zone
+        excess = width_diff_ratio - WIDTH_GOOD_THRESHOLD
+        scores['width'] = 70 - (excess / 0.05) * 30  # 70-40 range
+    elif width_diff_ratio <= WIDTH_MAX_THRESHOLD:  # 20%
+        # Poor but wearable
+        excess = width_diff_ratio - WIDTH_ACCEPTABLE_THRESHOLD
+        scores['width'] = 40 - (excess / 0.05) * 25  # 40-15 range
+    else:
+        # Too different but not impossible
+        excess = min(width_diff_ratio - WIDTH_MAX_THRESHOLD, 0.10)
+        scores['width'] = max(5, 15 - excess * 100)  # 15-5 range
+    
+    # IMPROVED PERIMETER SCORING: Extended perfect zone and smooth transitions
+    # Accounts for natural foot circumference variation during day
     if adjusted_foot['perimeter'] and shoe_perimeter:
         perim_ratio = adjusted_foot['perimeter'] / shoe_perimeter
-        if PERIMETER_PERFECT_MIN <= perim_ratio <= PERIMETER_PERFECT_MAX:  # Sweet spot
+        if PERIMETER_PERFECT_MIN <= perim_ratio <= PERIMETER_PERFECT_MAX:  # 0.90-1.08
+            # Extended perfect zone for natural variation
             scores['perimeter'] = 100
-        elif perim_ratio < PERIMETER_PERFECT_MIN:
-            scores['perimeter'] = max(0, 100 * (perim_ratio / PERIMETER_PERFECT_MIN))
+        elif 0.85 <= perim_ratio < PERIMETER_PERFECT_MIN:
+            # Loose but acceptable
+            deficit = PERIMETER_PERFECT_MIN - perim_ratio
+            scores['perimeter'] = 100 - (deficit / 0.05) * 15  # 100-85
+        elif perim_ratio < 0.85:
+            # Too loose but not impossible
+            deficit = min(0.85 - perim_ratio, 0.15)
+            scores['perimeter'] = max(10, 85 - (deficit / 0.15) * 75)  # 85-10
+        elif PERIMETER_PERFECT_MAX < perim_ratio <= PERIMETER_TIGHT_THRESHOLD:  # 1.08-1.12
+            # Getting tight but manageable
+            excess = perim_ratio - PERIMETER_PERFECT_MAX
+            scores['perimeter'] = 100 - (excess / 0.04) * 25  # 100-75
+        elif perim_ratio <= PERIMETER_MAX_RATIO:  # 1.12-1.18
+            # Too tight but manageable with break-in
+            excess = perim_ratio - PERIMETER_TIGHT_THRESHOLD
+            scores['perimeter'] = 75 - (excess / 0.06) * 50  # 75-25
         else:
-            scores['perimeter'] = max(0, 100 * (PERIMETER_MAX_RATIO - perim_ratio) / 0.1)
+            # Way too tight but not impossible
+            excess = min(perim_ratio - PERIMETER_MAX_RATIO, 0.10)
+            scores['perimeter'] = max(5, 25 - excess * 200)  # 25-5
     else:
-        # Fallback to estimated perimeter score
+        # Fallback to improved estimated perimeter score
         scores['perimeter'] = estimate_perimeter_score(user_length, user_width, shoe_length, shoe_width)
     
-    # Area scoring (volume accommodation)
+    # IMPROVED AREA SCORING: Better accommodation for foot shape variations
+    # Accounts for different foot shapes while maintaining fit quality
     if adjusted_foot['area'] and shoe_area:
         area_ratio = adjusted_foot['area'] / shoe_area
-        if AREA_PERFECT_MIN <= area_ratio <= AREA_PERFECT_MAX:  # Foot should fit within shoe area
+        if AREA_PERFECT_MIN <= area_ratio <= AREA_PERFECT_MAX:  # 0.88-1.02
+            # Extended perfect zone accounting for foot shape variation
             scores['area'] = 100
-        elif area_ratio < AREA_PERFECT_MIN:
-            scores['area'] = 100 * (area_ratio / AREA_PERFECT_MIN)
+        elif 0.80 <= area_ratio < AREA_PERFECT_MIN:
+            # Shoe has extra space - good for comfort
+            deficit = AREA_PERFECT_MIN - area_ratio
+            scores['area'] = 100 - (deficit / 0.08) * 10  # 100-90
+        elif area_ratio < 0.80:
+            # Too much extra space
+            deficit = min(0.80 - area_ratio, 0.20)
+            scores['area'] = max(20, 90 - (deficit / 0.20) * 70)  # 90-20
+        elif AREA_PERFECT_MAX < area_ratio <= AREA_TIGHT_THRESHOLD:  # 1.02-1.08
+            # Getting snug - acceptable for most foot shapes
+            excess = area_ratio - AREA_PERFECT_MAX
+            scores['area'] = 100 - (excess / 0.06) * 20  # 100-80
+        elif area_ratio <= AREA_MAX_RATIO:  # 1.08-1.15
+            # Tight but possible with flexible materials
+            excess = area_ratio - AREA_TIGHT_THRESHOLD
+            scores['area'] = 80 - (excess / 0.07) * 50  # 80-30
         else:
-            scores['area'] = max(0, 100 * (AREA_MAX_RATIO - area_ratio) / 0.1)
+            # Very tight but not impossible
+            excess = min(area_ratio - AREA_MAX_RATIO, 0.10)
+            scores['area'] = max(10, 30 - excess * 200)  # 30-10
     else:
-        # Fallback to estimated area score
+        # Fallback to improved estimated area score
         scores['area'] = estimate_area_score(user_length, user_width, shoe_length, shoe_width)
     
     # Weighted final score
     final_score = sum(weights[dim] * scores[dim] for dim in weights)
     
-    # Gradual length penalty instead of harsh 50% cutoff
-    if scores['length'] < CRITICAL_LENGTH_THRESHOLD:
-        penalty_factor = 0.7 + 0.3 * (scores['length'] / CRITICAL_LENGTH_THRESHOLD)
-        final_score *= penalty_factor
+    # NO ADDITIONAL PENALTIES NEEDED
+    # Improved scoring functions use smooth research-based curves throughout
+    # Eliminated harsh critical thresholds that caused sudden score drops
     
     return min(100, max(0, round(final_score, 1)))
 
@@ -483,31 +603,55 @@ def get_clearances_by_shoe_type(shoe_type):
     return clearance_configs.get(shoe_type, clearance_configs['casual'])
 
 def estimate_perimeter_score(user_length, user_width, shoe_length, shoe_width):
-    """Estimate perimeter fit score from length/width"""
+    """Improved perimeter fit score estimation from length/width"""
     user_perim = estimate_foot_perimeter_from_dimensions(user_length, user_width)
     shoe_perim = estimate_shoe_perimeter_from_dimensions(shoe_length, shoe_width)
     if user_perim and shoe_perim:
         ratio = user_perim / shoe_perim
-        if 0.95 <= ratio <= 1.05:
+        # Use same improved logic as main perimeter scoring
+        if PERIMETER_PERFECT_MIN <= ratio <= PERIMETER_PERFECT_MAX:
             return 100
-        elif ratio < 0.95:
-            return max(0, 100 * (ratio / 0.95))
+        elif 0.85 <= ratio < PERIMETER_PERFECT_MIN:
+            deficit = PERIMETER_PERFECT_MIN - ratio
+            return 100 - (deficit / 0.05) * 15
+        elif ratio < 0.85:
+            deficit = min(0.85 - ratio, 0.15)
+            return max(10, 85 - (deficit / 0.15) * 75)
+        elif PERIMETER_PERFECT_MAX < ratio <= PERIMETER_TIGHT_THRESHOLD:
+            excess = ratio - PERIMETER_PERFECT_MAX
+            return 100 - (excess / 0.04) * 25
+        elif ratio <= PERIMETER_MAX_RATIO:
+            excess = ratio - PERIMETER_TIGHT_THRESHOLD
+            return 75 - (excess / 0.06) * 50
         else:
-            return max(0, 100 * (1.15 - ratio) / 0.1)
+            excess = min(ratio - PERIMETER_MAX_RATIO, 0.10)
+            return max(5, 25 - excess * 200)
     return 75  # Default moderate score
 
 def estimate_area_score(user_length, user_width, shoe_length, shoe_width):
-    """Estimate area fit score from length/width"""
+    """Improved area fit score estimation from length/width"""
     user_area = estimate_foot_area_from_dimensions(user_length, user_width)
     shoe_area = estimate_shoe_area_from_dimensions(shoe_length, shoe_width)
     if user_area and shoe_area:
         ratio = user_area / shoe_area
-        if 0.9 <= ratio <= 1.0:
+        # Use same improved logic as main area scoring
+        if AREA_PERFECT_MIN <= ratio <= AREA_PERFECT_MAX:
             return 100
-        elif ratio < 0.9:
-            return 100 * (ratio / 0.9)
+        elif 0.80 <= ratio < AREA_PERFECT_MIN:
+            deficit = AREA_PERFECT_MIN - ratio
+            return 100 - (deficit / 0.08) * 10
+        elif ratio < 0.80:
+            deficit = min(0.80 - ratio, 0.20)
+            return max(20, 90 - (deficit / 0.20) * 70)
+        elif AREA_PERFECT_MAX < ratio <= AREA_TIGHT_THRESHOLD:
+            excess = ratio - AREA_PERFECT_MAX
+            return 100 - (excess / 0.06) * 20
+        elif ratio <= AREA_MAX_RATIO:
+            excess = ratio - AREA_TIGHT_THRESHOLD
+            return 80 - (excess / 0.07) * 50
         else:
-            return max(0, 100 * (1.1 - ratio) / 0.1)
+            excess = min(ratio - AREA_MAX_RATIO, 0.10)
+            return max(10, 30 - excess * 200)
     return 75  # Default moderate score
 
 def estimate_shoe_area_from_dimensions(length_inches, width_inches):
