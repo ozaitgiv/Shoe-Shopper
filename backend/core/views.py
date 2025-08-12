@@ -497,15 +497,22 @@ def process_insole_segmentation_data(result_json, paper_size="letter"):
         # Extract predictions from workflow format
         predictions = result_json[0]["predictions"]["predictions"]
         
+        logger.debug(f"Processing {len(predictions)} predictions")
+        
         # Find insole and paper data
         insole_data = None
         paper_data = None
         
         for pred in predictions:
+            class_name = pred.get("class")
+            logger.debug(f"Found prediction with class: {class_name}")
+            
             if pred.get("class") == "Insole":
                 insole_data = pred
+                logger.debug("Found Insole data")
             elif pred.get("class") == "Paper":
                 paper_data = pred
+                logger.debug("Found Paper data")
         
         if insole_data is None:
             return None, None, "Insole not detected in image"
