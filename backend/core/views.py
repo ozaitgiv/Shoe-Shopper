@@ -20,7 +20,7 @@ PERIMETER_MAX_RATIO = 1.15
 AREA_PERFECT_MIN = 0.9
 AREA_PERFECT_MAX = 1.0
 AREA_MAX_RATIO = 1.1
-LENGTH_MAX_RATIO = 1.1
+LENGTH_MAX_RATIO = 1.15
 WIDTH_TOLERANCE_PCT = 0.1
 
 # Foot shape estimation constants
@@ -28,7 +28,7 @@ FOOT_AREA_SHAPE_FACTOR = 0.7  # Research-based foot area factor
 SHOE_AREA_SHAPE_FACTOR = 0.75  # Slightly larger than foot
 
 # Critical scoring threshold for safety
-CRITICAL_LENGTH_THRESHOLD = 60
+CRITICAL_LENGTH_THRESHOLD = 40
 
 def cleanup_old_guest_sessions():
     """Clean up guest sessions older than 7 days to prevent database bloat"""
@@ -295,12 +295,18 @@ def enhanced_score_shoe_4d(user_length, user_width, user_area, user_perimeter,
     
     scores = {}
     
-    # Length scoring (more lenient for larger shoes)
+    # Length scoring (more gradual penalties)
     length_ratio = adjusted_foot['length'] / shoe_length
     if length_ratio <= 1.0:
         scores['length'] = 100 * (0.7 + 0.3 * length_ratio)  # 70-100 range
+    elif length_ratio <= 1.05:
+        # Gentle penalty for slightly oversized feet (100-70 range)
+        scores['length'] = 100 - (length_ratio - 1.0) * 600
     else:
-        scores['length'] = max(0, 100 * (LENGTH_MAX_RATIO - length_ratio) / 0.1)  # Penalty for too big
+        # Steeper penalty beyond 5% overage, starting from 70
+        penalty_range = LENGTH_MAX_RATIO - 1.05  # 0.1
+        remaining_ratio = length_ratio - 1.05
+        scores['length'] = max(0, 70 - (remaining_ratio / penalty_range) * 70)
     
     # Width scoring (symmetric tolerance)
     width_diff = abs(adjusted_foot['width'] - shoe_width)
@@ -336,9 +342,10 @@ def enhanced_score_shoe_4d(user_length, user_width, user_area, user_perimeter,
     # Weighted final score
     final_score = sum(weights[dim] * scores[dim] for dim in weights)
     
-    # Critical length penalty (non-compensatory)
+    # Gradual length penalty instead of harsh 50% cutoff
     if scores['length'] < CRITICAL_LENGTH_THRESHOLD:
-        final_score *= 0.5
+        penalty_factor = 0.7 + 0.3 * (scores['length'] / CRITICAL_LENGTH_THRESHOLD)
+        final_score *= penalty_factor
     
     return min(100, max(0, round(final_score, 1)))
 
