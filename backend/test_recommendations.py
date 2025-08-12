@@ -12,7 +12,7 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'shoe_shopper.settings')
 django.setup()
 
 from core.models import Shoe, FootImage
-from core.views import score_shoe, get_shoe_dimensions
+from core.views import enhanced_score_shoe, get_real_shoe_dimensions_4d, enhanced_score_shoe_4d
 
 def test_current_algorithm():
     """Test what the current algorithm is doing"""
@@ -40,8 +40,8 @@ def test_current_algorithm():
     
     for shoe in shoes[:5]:  # Test first 5 shoes
         # What the current algorithm does
-        algo_length, algo_width = get_shoe_dimensions(shoe)
-        fit_score = score_shoe(test_user_length, test_user_width, algo_length, algo_width)
+        algo_length, algo_width, algo_area, algo_perimeter = get_real_shoe_dimensions_4d(shoe)
+        fit_score = enhanced_score_shoe(test_user_length, test_user_width, algo_length, algo_width)
         
         # What we COULD do with real data
         real_length = shoe.insole_length or "None"

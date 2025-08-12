@@ -14,6 +14,8 @@ class FootImage(models.Model):
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='processing')
     length_inches = models.FloatField(null=True, blank=True)
     width_inches = models.FloatField(null=True, blank=True)
+    area_sqin = models.FloatField(null=True, blank=True, help_text="Foot area in square inches")
+    perimeter_inches = models.FloatField(null=True, blank=True, help_text="Foot perimeter in inches")
     error_message = models.TextField(null=True, blank=True)
     
     def __str__(self):
@@ -78,11 +80,32 @@ class Shoe(models.Model):
     
     def save(self, *args, **kwargs):
         """Override save to auto-process insole image when uploaded"""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # Check if this is a new image upload
+        is_new_image = False
+        if self.pk:
+            try:
+                old_instance = Shoe.objects.get(pk=self.pk)
+                is_new_image = old_instance.insole_image != self.insole_image
+            except Shoe.DoesNotExist:
+                is_new_image = True
+        else:
+            is_new_image = bool(self.insole_image)
+        
         # First, save the model to ensure the image file exists on disk
         super().save(*args, **kwargs)
         
         # THEN check if we need to process the image
-        if self.insole_image and not self.insole_length:
+        if self.insole_image and (not self.insole_length or is_new_image):
+            logger.info(f"Processing insole image for shoe {self.id}", extra={
+                'shoe_id': self.id,
+                'has_image': bool(self.insole_image),
+                'has_length': bool(self.insole_length),
+                'is_new_image': is_new_image
+            })
+            
             try:
                 # Import here to avoid circular imports
                 from .views import process_insole_image_with_enhanced_measurements
@@ -93,6 +116,14 @@ class Shoe(models.Model):
                 )
                 
                 if not error_msg:
+                    logger.info(f"Insole processing successful for shoe {self.id}", extra={
+                        'shoe_id': self.id,
+                        'length': length,
+                        'width': width,
+                        'perimeter': perimeter,
+                        'area': area
+                    })
+                    
                     # Auto-populate the measurement fields
                     self.insole_length = length
                     self.insole_width = width
@@ -101,10 +132,17 @@ class Shoe(models.Model):
                     
                     # Save again with the measurements (without triggering infinite loop)
                     super().save(*args, **kwargs)
+                else:
+                    logger.error(f"Insole processing failed for shoe {self.id}: {error_msg}", extra={
+                        'shoe_id': self.id,
+                        'error_message': error_msg
+                    })
                     
             except Exception as e:
-                # If processing fails, just continue without measurements
-                pass
+                logger.exception(f"Unexpected error processing insole for shoe {self.id}", extra={
+                    'shoe_id': self.id,
+                    'error': str(e)
+                })
     
     def __str__(self):
         return f"{self.company} {self.model} (US {self.us_size})"
