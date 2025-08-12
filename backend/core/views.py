@@ -84,28 +84,7 @@ def process_foot_image_enhanced(image_path, paper_size="letter"):
             api_key=os.environ.get("ROBOFLOW_API_KEY")
         )
         
-        # Try segmentation workflow first for enhanced measurements
-        try:
-            result = client.run_workflow(
-                workspace_name="armaanai",
-                workflow_id="foot-segmentation",  # Assume this exists or will be created
-                images={"image": image_path},
-                use_cache=True
-            )
-            
-            # Process segmentation data similar to insole processing
-            measurements, error_data, error_msg = process_foot_segmentation_data(result, paper_size)
-            
-            if not error_msg:
-                return (measurements['length'], measurements['width'], 
-                       measurements['area'], measurements['perimeter'], None)
-        except (KeyError, ValueError, ConnectionError, AttributeError) as e:
-            # If segmentation workflow doesn't exist or fails, fall back to bounding box method
-            logger.info("Segmentation workflow not available, using fallback method", extra={
-                'error': str(e), 'workflow_id': 'foot-segmentation'
-            })
-        
-        # Fallback to original bounding box method
+        # Use the working foot-measuring workflow (foot-segmentation doesn't exist yet)
         result = client.run_workflow(
             workspace_name="armaanai",
             workflow_id="foot-measuring",
