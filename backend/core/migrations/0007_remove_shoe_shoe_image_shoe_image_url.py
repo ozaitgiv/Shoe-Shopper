@@ -2,6 +2,32 @@
 
 from django.db import migrations, models
 
+def safe_remove_shoe_image_field(apps, schema_editor):
+    """Safely remove shoe_image field if it exists"""
+    cursor = schema_editor.connection.cursor()
+    
+    # Check if the field exists before trying to remove it
+    try:
+        cursor.execute("""
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name = 'core_shoe' AND column_name = 'shoe_image'
+        """)
+        field_exists = cursor.fetchone() is not None
+        
+        if field_exists:
+            print("shoe_image field exists, removing it...")
+            cursor.execute("ALTER TABLE core_shoe DROP COLUMN shoe_image")
+        else:
+            print("shoe_image field doesn't exist, skipping removal")
+            
+    except Exception as e:
+        print(f"Safe field removal check: {e}")
+        # Continue anyway - field might not exist
+
+def reverse_safe_remove_shoe_image_field(apps, schema_editor):
+    """Reverse operation - no action needed"""
+    pass
 
 class Migration(migrations.Migration):
 
@@ -10,13 +36,16 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RemoveField(
-            model_name='shoe',
-            name='shoe_image',
-        ),
+        # Add the URL field first
         migrations.AddField(
             model_name='shoe',
             name='image_url',
             field=models.URLField(blank=True, help_text='Direct URL to the product image', null=True),
+        ),
+        
+        # Safely remove shoe_image field if it exists
+        migrations.RunPython(
+            safe_remove_shoe_image_field,
+            reverse_safe_remove_shoe_image_field,
         ),
     ]
