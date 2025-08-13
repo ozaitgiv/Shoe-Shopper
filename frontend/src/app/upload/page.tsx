@@ -79,9 +79,30 @@ export default function Dashboard() {
 
   const [showFilters, setShowFilters] = useState(true)
 
+  // Generate a UUID for guest sessions
+  const generateUUID = () => {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      const r = Math.random() * 16 | 0
+      const v = c == 'x' ? r : (r & 0x3 | 0x8)
+      return v.toString(16)
+    })
+  }
+
+  // Initialize guest session for guest users
+  const initializeGuestSession = () => {
+    const isGuest = localStorage.getItem("isGuest") === "true"
+    if (isGuest && !guestSessionId) {
+      const newSessionId = generateUUID()
+      setGuestSessionId(newSessionId)
+      console.log("Generated new guest session ID:", newSessionId.substring(0, 8) + "...")
+    }
+  }
+
   // Check authentication and get user info
   useEffect(() => {
     checkAuth()
+    // Initialize guest session ID for guest users
+    initializeGuestSession()
   }, [])
 
   // Set default paper size based on user's location
@@ -273,6 +294,11 @@ export default function Dashboard() {
       if (!isGuest && token) {
         headers["Authorization"] = `Token ${token}`
       }
+      
+      // Include guest session ID for guest users
+      if (isGuest && guestSessionId) {
+        headers["X-Guest-Session-ID"] = guestSessionId
+      }
 
       const uploadResponse = await fetch(`${API_BASE_URL}/api/measurements/upload/`, {
         method: "POST",
@@ -388,7 +414,14 @@ export default function Dashboard() {
     setMeasurementResult(null)
     setError(null)
     setUploadProgress(0)
-    setGuestSessionId(null)
+    
+    // Generate new session ID for guests on reset
+    const isGuest = localStorage.getItem("isGuest") === "true"
+    if (isGuest) {
+      const newSessionId = generateUUID()
+      setGuestSessionId(newSessionId)
+      console.log("Generated new guest session ID for reset:", newSessionId.substring(0, 8) + "...")
+    }
   }
 
   const handleFilterChange = (category: keyof UserPreferences, value: string) => {
