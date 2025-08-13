@@ -41,8 +41,8 @@ if IS_RENDER:
     CORS_ALLOWED_ORIGINS = [
         'https://*.vercel.app',  # Your Vercel frontend
     ]
-    # Enable CORS for development/testing
-    CORS_ALLOW_ALL_ORIGINS = True  # Remove this after frontend is set up
+    # Enable CORS for development/testing and mobile devices
+    CORS_ALLOW_ALL_ORIGINS = True  # Required for mobile browsers and development
     
 elif IS_RAILWAY:
     # Production settings for Railway
@@ -203,6 +203,17 @@ CORS_ALLOW_HEADERS = [
     'x-csrftoken',
     'x-requested-with',
     'x-guest-session-id',  # Allow our custom guest session header
+]
+
+# Additional CORS settings for better mobile compatibility
+CORS_PREFLIGHT_MAX_AGE = 86400  # Cache preflight requests for 24 hours
+CORS_ALLOWED_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
 ]
 
 # CSRF settings for secure API integration and cross-site requests

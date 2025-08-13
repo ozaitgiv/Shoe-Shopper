@@ -12,11 +12,15 @@ from .views import (
     delete_account,
     shoe_list_with_scores,
     get_categories,
+    create_guest_session,
 )
 
 urlpatterns = [
     # CSRF
     path("csrf/", get_csrf_token, name="get-csrf-token"),
+    
+    # Guest Session
+    path("guest/session/", create_guest_session, name="create-guest-session"),
 
     # Auth
     path("auth/signup/", signup, name="signup"),

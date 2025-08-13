@@ -1238,6 +1238,35 @@ def get_csrf_token(request):
     return JsonResponse({"csrfToken": request.META.get("CSRF_COOKIE", "")})
 
 
+# === GUEST SESSION ===
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@csrf_exempt
+def create_guest_session(request):
+    """Create a new guest session immediately when user clicks 'Try as Guest'"""
+    try:
+        # Create new guest session
+        guest_session = GuestSession.objects.create()
+        
+        logger.info("Created new guest session", extra={
+            'session_id': str(guest_session.id)[:8] + '...',
+            'ip_address': request.META.get('REMOTE_ADDR', 'unknown')
+        })
+        
+        return Response({
+            "guest_session_id": str(guest_session.id),
+            "expires_in_hours": 1,
+            "created_at": guest_session.created_at.isoformat()
+        }, status=201)
+        
+    except Exception as e:
+        logger.error(f"Failed to create guest session: {str(e)}")
+        return Response({
+            "error": "Failed to create guest session"
+        }, status=500)
+
+
 # === AUTH APIs ===
 
 @api_view(['POST'])

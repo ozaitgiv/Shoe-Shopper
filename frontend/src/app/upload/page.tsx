@@ -160,9 +160,16 @@ export default function Dashboard() {
   const initializeGuestSession = () => {
     const isGuest = localStorage.getItem("isGuest") === "true"
     if (isGuest && !guestSessionId) {
-      const newSessionId = generateUUID()
-      setGuestSessionId(newSessionId)
-      console.log("Generated new guest session ID:", newSessionId.substring(0, 8) + "...")
+      // Try to get existing session ID from localStorage (created when "Try as Guest" was clicked)
+      const existingSessionId = localStorage.getItem("guestSessionId")
+      if (existingSessionId) {
+        setGuestSessionId(existingSessionId)
+        console.log("Using existing guest session ID:", existingSessionId.substring(0, 8) + "...")
+      } else {
+        console.warn("No guest session ID found - session should have been created when 'Try as Guest' was clicked")
+        // This shouldn't happen with the new flow, but we'll handle it gracefully
+        // The backend will create a session on first upload if needed
+      }
     }
   }
 
@@ -443,13 +450,29 @@ export default function Dashboard() {
 
       const uploadData = await uploadResponse.json()
       
-      // Don't update guestSessionId - we should keep using the same UUID we sent
-      // The backend should return the same UUID we provided, not a different one
+      // Store the guest session ID returned by the backend (for new sessions)
+      if (isGuest && uploadData.guest_session_id) {
+        const backendSessionId = uploadData.guest_session_id
+        setGuestSessionId(backendSessionId)
+        localStorage.setItem("guestSessionId", backendSessionId)
+        console.log("Stored backend-provided guest session ID:", backendSessionId.substring(0, 8) + "...")
+      }
       
       await pollForResults(uploadData.measurement_id)
     } catch (error) {
       console.error("Upload failed:", error)
-      setError(error instanceof Error ? error.message : "Upload failed. Please try again.")
+      
+      // Better error messages for mobile users
+      let errorMessage = "Upload failed. Please try again."
+      if (error instanceof TypeError && error.message.includes("NetworkError")) {
+        errorMessage = "Network error. Please check your internet connection and try again."
+      } else if (error instanceof TypeError && error.message.includes("Failed to fetch")) {
+        errorMessage = "Cannot reach server. Please check your internet connection and try again."
+      } else if (error instanceof Error) {
+        errorMessage = error.message
+      }
+      
+      setError(errorMessage)
       setIsProcessing(false)
     }
   }
@@ -503,7 +526,16 @@ export default function Dashboard() {
         }
       } catch (error) {
         console.error("Polling error:", error)
-        setError("Failed to get processing results. Please try again.")
+        
+        // Better error messages for mobile users
+        let errorMessage = "Failed to get processing results. Please try again."
+        if (error instanceof TypeError && error.message.includes("NetworkError")) {
+          errorMessage = "Network error while checking results. Please check your internet connection."
+        } else if (error instanceof TypeError && error.message.includes("Failed to fetch")) {
+          errorMessage = "Cannot reach server to check results. Please check your internet connection."
+        }
+        
+        setError(errorMessage)
         setIsProcessing(false)
       }
     }
@@ -542,13 +574,8 @@ export default function Dashboard() {
     setError(null)
     setUploadProgress(0)
     
-    // Generate new session ID for guests on reset
-    const isGuest = localStorage.getItem("isGuest") === "true"
-    if (isGuest) {
-      const newSessionId = generateUUID()
-      setGuestSessionId(newSessionId)
-      console.log("Generated new guest session ID for reset:", newSessionId.substring(0, 8) + "...")
-    }
+    // Keep the same session ID for guests on reset - don't generate a new one
+    // This allows the user to see their previous measurements if they want to
   }
 
   const handleFilterChange = (category: keyof UserPreferences, value: string) => {

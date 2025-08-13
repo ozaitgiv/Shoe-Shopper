@@ -159,6 +159,7 @@ export default function RecommendationsPage() {
   const [sortBy, setSortBy] = useState<"fit_score" | "price_low" | "price_high">("fit_score")
   const [showFilters, setShowFilters] = useState(false)
   const [categories, setCategories] = useState<Categories | null>(null)
+  const [guestSessionId, setGuestSessionId] = useState<string | null>(null)
 
   // Load preferences from localStorage
   const [preferences, setPreferences] = useState<UserPreferences>({
@@ -168,9 +169,27 @@ export default function RecommendationsPage() {
     maxPrice: 1000,
   })
 
+  // Initialize guest session for guest users
+  const initializeGuestSession = () => {
+    const isGuest = localStorage.getItem("isGuest") === "true"
+    if (isGuest && !guestSessionId) {
+      // Try to get existing session ID from localStorage (created when "Try as Guest" was clicked)
+      const existingSessionId = localStorage.getItem("guestSessionId")
+      if (existingSessionId) {
+        setGuestSessionId(existingSessionId)
+        console.log("Using existing guest session ID:", existingSessionId.substring(0, 8) + "...")
+      } else {
+        console.warn("No guest session ID found - session should have been created when 'Try as Guest' was clicked")
+        // User should go back and upload a foot image first
+      }
+    }
+  }
+
   // Check authentication and get user info
   useEffect(() => {
     checkAuth()
+    // Initialize guest session ID for guest users
+    initializeGuestSession()
   }, [])
 
   // Load preferences, categories and shoes when auth check is complete
@@ -325,6 +344,11 @@ export default function RecommendationsPage() {
           headers.Authorization = `Token ${token}`
         }
         
+        // Include guest session ID for guest users
+        if (isGuest && guestSessionId) {
+          headers["X-Guest-Session-ID"] = guestSessionId
+        }
+        
         const measurementsResponse = await fetch(`${API_BASE_URL}/api/measurements/latest/`, {
           headers,
           credentials: "include", // Important: Include session cookies for guest isolation
@@ -344,7 +368,16 @@ export default function RecommendationsPage() {
         }
       } catch (error) {
         console.error("Could not load user measurements:", error)
-        setError("Failed to load your foot measurements. Please upload a foot image first.")
+        
+        // Better error messages for mobile users
+        let errorMessage = "Failed to load your foot measurements. Please upload a foot image first."
+        if (error instanceof TypeError && error.message.includes("NetworkError")) {
+          errorMessage = "Network error loading measurements. Please check your internet connection and try again."
+        } else if (error instanceof TypeError && error.message.includes("Failed to fetch")) {
+          errorMessage = "Cannot reach server to load measurements. Please check your internet connection."
+        }
+        
+        setError(errorMessage)
         return
       }
 
@@ -357,6 +390,11 @@ export default function RecommendationsPage() {
         // Only add auth header if user is authenticated
         if (token && !isGuest) {
           headers.Authorization = `Token ${token}`
+        }
+        
+        // Include guest session ID for guest users
+        if (isGuest && guestSessionId) {
+          headers["X-Guest-Session-ID"] = guestSessionId
         }
         
         const recommendationsResponse = await fetch(`${API_BASE_URL}/api/recommendations/`, {
@@ -380,12 +418,32 @@ export default function RecommendationsPage() {
         }
       } catch (recommendationsError) {
         console.error("Failed to load recommendations from backend:", recommendationsError)
-        setError("Failed to load shoe recommendations. Please try again later.")
+        
+        // Better error messages for mobile users
+        let errorMessage = "Failed to load shoe recommendations. Please try again later."
+        if (recommendationsError instanceof TypeError && recommendationsError.message.includes("NetworkError")) {
+          errorMessage = "Network error loading recommendations. Please check your internet connection."
+        } else if (recommendationsError instanceof TypeError && recommendationsError.message.includes("Failed to fetch")) {
+          errorMessage = "Cannot reach server to load recommendations. Please check your internet connection."
+        }
+        
+        setError(errorMessage)
         setAllShoes([]) // Clear any existing data
       }
     } catch (error) {
       console.error("Failed to load data:", error)
-      setError(error instanceof Error ? error.message : "Failed to load shoe recommendations. Please try again later.")
+      
+      // Better error messages for mobile users
+      let errorMessage = "Failed to load shoe recommendations. Please try again later."
+      if (error instanceof TypeError && error.message.includes("NetworkError")) {
+        errorMessage = "Network error. Please check your internet connection and try again."
+      } else if (error instanceof TypeError && error.message.includes("Failed to fetch")) {
+        errorMessage = "Cannot reach server. Please check your internet connection."
+      } else if (error instanceof Error) {
+        errorMessage = error.message
+      }
+      
+      setError(errorMessage)
       setAllShoes([]) // Clear any existing data
     } finally {
       setIsLoadingData(false)
@@ -621,6 +679,8 @@ export default function RecommendationsPage() {
                       <button
                         onClick={() => {
                           localStorage.removeItem("isGuest")
+                          localStorage.removeItem("guestSessionId") // Clean up guest session
+                          localStorage.removeItem("userPreferences") // Clean up preferences
                           router.push("/")
                         }}
                         className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"

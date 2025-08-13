@@ -162,10 +162,39 @@ const getCSRFToken = async () => {
     }
   }
 
-  const handleGuestLogin = () => {
-    // Simply mark as guest and redirect - no backend call needed
-    localStorage.setItem("isGuest", "true")
-    router.push("/upload")
+  const handleGuestLogin = async () => {
+    try {
+      // Create guest session on backend immediately
+      const response = await fetch(`${API_BASE_URL}/api/guest/session/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      })
+
+      if (response.ok) {
+        const sessionData = await response.json()
+        
+        // Store guest session data
+        localStorage.setItem("isGuest", "true")
+        localStorage.setItem("guestSessionId", sessionData.guest_session_id)
+        
+        console.log("Created guest session:", sessionData.guest_session_id.substring(0, 8) + "...")
+        
+        // Redirect to upload page
+        router.push("/upload")
+      } else {
+        console.error("Failed to create guest session")
+        // Fallback: still allow guest mode but without pre-created session
+        localStorage.setItem("isGuest", "true")
+        router.push("/upload")
+      }
+    } catch (error) {
+      console.error("Error creating guest session:", error)
+      // Fallback: still allow guest mode but without pre-created session
+      localStorage.setItem("isGuest", "true")
+      router.push("/upload")
+    }
   }
 
   return (
