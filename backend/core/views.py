@@ -57,25 +57,36 @@ def get_or_create_guest_session(request):
         
         if guest_session_id:
             try:
-                # Validate it's a proper UUID and get the session
+                # Validate it's a proper UUID format
                 import uuid
                 uuid.UUID(guest_session_id)  # Validate UUID format
-                guest_session = GuestSession.objects.get(id=guest_session_id)
                 
-                # Check if session is expired
-                if guest_session.is_expired():
-                    logger.info("Guest session expired, creating new one", extra={
-                        'expired_session_id': str(guest_session_id)[:8] + '...'
-                    })
-                    guest_session.delete()
-                    guest_session = GuestSession.objects.create()
-                    return guest_session, True
+                # Try to get existing session, create if doesn't exist
+                guest_session, created = GuestSession.objects.get_or_create(
+                    id=guest_session_id
+                )
+                
+                if not created:
+                    # Check if existing session is expired
+                    if guest_session.is_expired():
+                        logger.info("Guest session expired, creating new one", extra={
+                            'expired_session_id': str(guest_session_id)[:8] + '...'
+                        })
+                        guest_session.delete()
+                        guest_session = GuestSession.objects.create(id=guest_session_id)
+                        return guest_session, True
+                    else:
+                        # Update last_accessed timestamp for existing session
+                        guest_session.save()  # This triggers auto_now on last_accessed
+                        return guest_session, False
                 else:
-                    # Update last_accessed timestamp
-                    guest_session.save()  # This triggers auto_now on last_accessed
-                    return guest_session, False
+                    # New session created with frontend-provided UUID
+                    logger.info("Created new guest session with provided UUID", extra={
+                        'session_id': str(guest_session_id)[:8] + '...'
+                    })
+                    return guest_session, True
                     
-            except (ValueError, GuestSession.DoesNotExist):
+            except ValueError:
                 # Invalid UUID or session doesn't exist, create new one
                 logger.info("Invalid or non-existent guest session, creating new one")
                 guest_session = GuestSession.objects.create()

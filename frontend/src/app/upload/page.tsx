@@ -314,10 +314,8 @@ export default function Dashboard() {
 
       const uploadData = await uploadResponse.json()
       
-      // Store guest session ID if provided
-      if (uploadData.guest_session_id) {
-        setGuestSessionId(uploadData.guest_session_id)
-      }
+      // Don't update guestSessionId - we should keep using the same UUID we sent
+      // The backend should return the same UUID we provided, not a different one
       
       await pollForResults(uploadData.measurement_id)
     } catch (error) {
