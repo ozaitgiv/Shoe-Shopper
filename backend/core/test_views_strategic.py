@@ -18,10 +18,23 @@ from django.contrib.sessions.backends.db import SessionStore
 from decimal import Decimal
 from unittest.mock import patch, MagicMock, call
 import json
+import io
+from PIL import Image
+
+
 import tempfile
 import random
 
 from .models import FootImage, Shoe
+
+
+def create_test_image(width=100, height=100, format='JPEG'):
+    """Create a valid test image for upload tests"""
+    img = Image.new('RGB', (width, height), color='white')
+    buffer = io.BytesIO()
+    img.save(buffer, format=format)
+    buffer.seek(0)
+    return buffer.getvalue()
 
 
 class ViewsStrategicImageProcessingTest(TestCase):
@@ -125,7 +138,7 @@ class ViewsStrategicUploadTest(TestCase):
         # Force cleanup to trigger (10% chance)
         mock_random.return_value = 0.05  # Less than 0.1, should trigger cleanup
         
-        test_image = SimpleUploadedFile('test.jpg', b'fake image', content_type='image/jpeg')
+        test_image = SimpleUploadedFile('test.jpg', create_test_image(), content_type='image/jpeg')
         
         response = self.client.post('/api/measurements/upload/', {'image': test_image})
         
@@ -146,7 +159,7 @@ class ViewsStrategicUploadTest(TestCase):
         # Prevent cleanup from triggering
         mock_random.return_value = 0.5  # Greater than 0.1
         
-        test_image = SimpleUploadedFile('test.jpg', b'fake image', content_type='image/jpeg')
+        test_image = SimpleUploadedFile('test.jpg', create_test_image(), content_type='image/jpeg')
         
         with patch('core.views.cleanup_old_guest_sessions') as mock_cleanup:
             response = self.client.post('/api/measurements/upload/', {'image': test_image})
@@ -161,7 +174,7 @@ class ViewsStrategicUploadTest(TestCase):
         # Mock processing error
         mock_process.return_value = (None, None, None, None, "AI service temporarily unavailable")
         
-        test_image = SimpleUploadedFile('test.jpg', b'fake image', content_type='image/jpeg')
+        test_image = SimpleUploadedFile('test.jpg', create_test_image(), content_type='image/jpeg')
         
         response = self.client.post('/api/measurements/upload/', {'image': test_image})
         
@@ -177,7 +190,7 @@ class ViewsStrategicUploadTest(TestCase):
         # Mock successful processing
         mock_process.return_value = (11.2, 4.3, 44.5, 29.1, None)
         
-        test_image = SimpleUploadedFile('test.jpg', b'fake image', content_type='image/jpeg')
+        test_image = SimpleUploadedFile('test.jpg', create_test_image(), content_type='image/jpeg')
         
         response = self.client.post('/api/measurements/upload/', {'image': test_image})
         
@@ -195,7 +208,7 @@ class ViewsStrategicUploadTest(TestCase):
         """Test paper_size parameter handling (lines 715-720)"""
         mock_process.return_value = (10.0, 4.0, 40.0, 26.0, None)
         
-        test_image = SimpleUploadedFile('test.jpg', b'fake image', content_type='image/jpeg')
+        test_image = SimpleUploadedFile('test.jpg', create_test_image(), content_type='image/jpeg')
         
         # Test with custom paper size
         response = self.client.post('/api/measurements/upload/', {
@@ -211,7 +224,7 @@ class ViewsStrategicUploadTest(TestCase):
     
     def test_foot_image_upload_exception_handling(self):
         """Test exception handling during processing (lines 744-752)"""
-        test_image = SimpleUploadedFile('test.jpg', b'fake image', content_type='image/jpeg')
+        test_image = SimpleUploadedFile('test.jpg', create_test_image(), content_type='image/jpeg')
         
         # Force an exception by mocking image.path to raise an error
         with patch.object(FootImage, 'save') as mock_save:

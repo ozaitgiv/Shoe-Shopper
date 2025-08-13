@@ -6,7 +6,7 @@ class FootImageSerializer(serializers.ModelSerializer):
         model = FootImage
         fields = [
             'id', 'user', 'image', 'uploaded_at', 'status',
-            'length_inches', 'width_inches', 'error_message'
+            'length_inches', 'width_inches', 'area_sqin', 'perimeter_inches', 'error_message'
         ]
         extra_kwargs = {
             'user': {'required': False, 'allow_null': True}

@@ -131,7 +131,7 @@ class Shoe(models.Model):
                     self.insole_area = area
                     
                     # Save again with the measurements (without triggering infinite loop)
-                    super().save(*args, **kwargs)
+                    super().save()
                 else:
                     logger.error(f"Insole processing failed for shoe {self.id}: {error_msg}", extra={
                         'shoe_id': self.id,
