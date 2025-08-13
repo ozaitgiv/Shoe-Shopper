@@ -1385,6 +1385,33 @@ def get_latest_measurement(request):
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_categories(request):
+    """Get dynamic categories from the database"""
+    try:
+        categories = {
+            "companies": list(Shoe.objects.filter(is_active=True)
+                             .values_list('company', flat=True)
+                             .distinct()
+                             .order_by('company')),
+            "genders": [
+                {"value": choice[0], "label": choice[1]} 
+                for choice in Shoe.GENDER_CHOICES
+            ],
+            "widths": [
+                {"value": choice[0], "label": choice[1]} 
+                for choice in Shoe.WIDTH_CHOICES
+            ],
+            "functions": [
+                {"value": choice[0], "label": choice[1]} 
+                for choice in Shoe.FUNCTION_CHOICES
+            ],
+        }
+        return Response(categories)
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)
+
 @csrf_exempt
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])

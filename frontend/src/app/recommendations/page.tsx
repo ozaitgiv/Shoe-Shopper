@@ -19,6 +19,13 @@ import Link from "next/link"
 // API configuration
 const API_BASE_URL = "https://shoeshopper.onrender.com"
 
+// Cache configuration
+const CACHE_DURATION_HOURS = 1
+const CACHE_KEYS = {
+  CATEGORIES: 'categoriesCache',
+  CATEGORIES_TIME: 'categoriesCacheTime'
+} as const
+
 // Options for filters
 const GENDER_OPTIONS = ["Men", "Women", "Unisex"]
 const BRAND_OPTIONS = [
@@ -78,6 +85,66 @@ interface UserPreferences {
   maxPrice: number
 }
 
+interface CategoryOption {
+  value: string
+  label: string
+}
+
+interface Categories {
+  companies: string[]
+  genders: CategoryOption[]
+  widths: CategoryOption[]
+  functions: CategoryOption[]
+}
+
+// Type validation for cached data
+const validateCategories = (data: any): data is Categories => {
+  return data && 
+         typeof data === 'object' &&
+         Array.isArray(data.companies) &&
+         Array.isArray(data.genders) &&
+         Array.isArray(data.widths) &&
+         Array.isArray(data.functions) &&
+         data.genders.every((g: any) => g && typeof g.value === 'string' && typeof g.label === 'string') &&
+         data.widths.every((w: any) => w && typeof w.value === 'string' && typeof w.label === 'string') &&
+         data.functions.every((f: any) => f && typeof f.value === 'string' && typeof f.label === 'string')
+}
+
+// Fallback categories to eliminate code duplication
+const createFallbackCategories = (): Categories => ({
+  companies: BRAND_OPTIONS,
+  genders: [
+    { value: "M", label: "Men" },
+    { value: "W", label: "Women" }, 
+    { value: "U", label: "Unisex" }
+  ],
+  widths: [
+    { value: "N", label: "Narrow" },
+    { value: "D", label: "Regular" },
+    { value: "W", label: "Wide" }
+  ],
+  functions: FUNCTION_OPTIONS.map(f => ({ value: f, label: f.charAt(0).toUpperCase() + f.slice(1) }))
+})
+
+// Safe cache operations
+const saveToCache = (data: Categories): void => {
+  try {
+    localStorage.setItem(CACHE_KEYS.CATEGORIES, JSON.stringify(data))
+    localStorage.setItem(CACHE_KEYS.CATEGORIES_TIME, Date.now().toString())
+  } catch (error) {
+    console.warn('Failed to cache categories - continuing without cache:', error)
+  }
+}
+
+const clearCache = (): void => {
+  try {
+    localStorage.removeItem(CACHE_KEYS.CATEGORIES)
+    localStorage.removeItem(CACHE_KEYS.CATEGORIES_TIME)
+  } catch (error) {
+    console.warn('Failed to clear category cache:', error)
+  }
+}
+
 export default function RecommendationsPage() {
   const router = useRouter()
   const [user, setUser] = useState<AppUser | null>(null)
@@ -91,6 +158,7 @@ export default function RecommendationsPage() {
   const [error, setError] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState<"fit_score" | "price_low" | "price_high">("fit_score")
   const [showFilters, setShowFilters] = useState(false)
+  const [categories, setCategories] = useState<Categories | null>(null)
 
   // Load preferences from localStorage
   const [preferences, setPreferences] = useState<UserPreferences>({
@@ -105,11 +173,12 @@ export default function RecommendationsPage() {
     checkAuth()
   }, [])
 
-  // Load preferences and shoes when auth check is complete
+  // Load preferences, categories and shoes when auth check is complete
   useEffect(() => {
     if (!isLoading && !dataLoadedRef.current) {
       dataLoadedRef.current = true
       loadSavedPreferences()
+      loadCategories()
       loadAllShoes()
     }
   }, [isLoading])
@@ -137,6 +206,65 @@ export default function RecommendationsPage() {
       setPreferences(newPreferences)
     } catch (error) {
       console.error("Error saving preferences:", error)
+    }
+  }
+
+  const loadCategories = async () => {
+    try {
+      // Check cache first with validation
+      const cachedData = localStorage.getItem(CACHE_KEYS.CATEGORIES)
+      const cacheTime = localStorage.getItem(CACHE_KEYS.CATEGORIES_TIME)
+      
+      if (cachedData && cacheTime) {
+        const hoursSinceCache = (Date.now() - parseInt(cacheTime)) / (1000 * 60 * 60)
+        if (hoursSinceCache < CACHE_DURATION_HOURS) {
+          try {
+            const parsedData = JSON.parse(cachedData)
+            if (validateCategories(parsedData)) {
+              setCategories(parsedData)
+              console.log("✅ Loaded validated cached categories")
+              return
+            } else {
+              console.warn("Cached categories failed validation, clearing cache")
+              clearCache()
+            }
+          } catch (parseError) {
+            console.warn("Failed to parse cached categories, clearing cache:", parseError)
+            clearCache()
+          }
+        } else {
+          console.log("Cache expired, clearing and fetching fresh data")
+          clearCache()
+        }
+      }
+      
+      // Fetch fresh categories from API
+      const response = await fetch(`${API_BASE_URL}/api/categories/`)
+      if (response.ok) {
+        const categoryData = await response.json()
+        
+        if (validateCategories(categoryData)) {
+          setCategories(categoryData)
+          saveToCache(categoryData)
+          console.log("✅ Loaded and cached fresh categories")
+        } else {
+          console.warn("API returned invalid category structure, using fallback")
+          const fallbackCategories = createFallbackCategories()
+          setCategories(fallbackCategories)
+        }
+      } else {
+        if (response.status === 429) {
+          console.warn("Rate limit exceeded, using fallback categories")
+        } else {
+          console.warn(`API request failed with status ${response.status}, using fallback`)
+        }
+        const fallbackCategories = createFallbackCategories()
+        setCategories(fallbackCategories)
+      }
+    } catch (error) {
+      console.error("Error loading categories, using fallback:", error)
+      const fallbackCategories = createFallbackCategories()
+      setCategories(fallbackCategories)
     }
   }
 
@@ -267,18 +395,26 @@ export default function RecommendationsPage() {
   const applyFiltersAndSorting = () => {
     let filtered = [...allShoes]
 
-    // Apply gender filter
-    if (preferences.gender.length > 0) {
-      const genderCodes = preferences.gender.map((g) => (g === "Men" ? "M" : g === "Women" ? "W" : "U"))
+    // Apply gender filter with optimized lookup
+    if (preferences.gender.length > 0 && categories) {
+      // Create lookup map for performance (O(1) instead of O(n))
+      const genderLabelToCode = categories.genders.reduce((map, option) => {
+        map[option.label] = option.value
+        return map
+      }, {} as Record<string, string>)
+      
+      const genderCodes = preferences.gender.map((g) => {
+        return genderLabelToCode[g] || (g === "Men" ? "M" : g === "Women" ? "W" : "U")
+      })
       filtered = filtered.filter((shoe) => genderCodes.includes(shoe.gender))
     }
 
-    // Apply brand filter
+    // Apply brand filter (no mapping needed, company names are direct)
     if (preferences.brand.length > 0) {
       filtered = filtered.filter((shoe) => preferences.brand.includes(shoe.company))
     }
 
-    // Apply function filter
+    // Apply function filter (no mapping needed, values are direct)
     if (preferences.function.length > 0) {
       filtered = filtered.filter((shoe) => preferences.function.includes(shoe.function))
     }
@@ -640,15 +776,15 @@ export default function RecommendationsPage() {
                 <div className="mb-6">
                   <h4 className="font-medium text-gray-900 mb-3">Gender</h4>
                   <div className="space-y-2">
-                    {GENDER_OPTIONS.map((option) => (
-                      <label key={option} className="flex items-center">
+                    {(categories?.genders || []).map((option) => (
+                      <label key={option.value} className="flex items-center">
                         <input
                           type="checkbox"
-                          checked={preferences.gender.includes(option)}
-                          onChange={() => handleFilterChange("gender", option)}
+                          checked={preferences.gender.includes(option.label)}
+                          onChange={() => handleFilterChange("gender", option.label)}
                           className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                         />
-                        <span className="ml-2 text-sm text-gray-700">{option}</span>
+                        <span className="ml-2 text-sm text-gray-700">{option.label}</span>
                       </label>
                     ))}
                   </div>
@@ -658,15 +794,15 @@ export default function RecommendationsPage() {
                 <div className="mb-6">
                   <h4 className="font-medium text-gray-900 mb-3">Brand</h4>
                   <div className="space-y-2 max-h-40 overflow-y-auto">
-                    {BRAND_OPTIONS.map((option) => (
-                      <label key={option} className="flex items-center">
+                    {(categories?.companies || []).map((company) => (
+                      <label key={company} className="flex items-center">
                         <input
                           type="checkbox"
-                          checked={preferences.brand.includes(option)}
-                          onChange={() => handleFilterChange("brand", option)}
+                          checked={preferences.brand.includes(company)}
+                          onChange={() => handleFilterChange("brand", company)}
                           className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                         />
-                        <span className="ml-2 text-sm text-gray-700">{option}</span>
+                        <span className="ml-2 text-sm text-gray-700">{company}</span>
                       </label>
                     ))}
                   </div>
@@ -676,15 +812,15 @@ export default function RecommendationsPage() {
                 <div className="mb-6">
                   <h4 className="font-medium text-gray-900 mb-3">Function</h4>
                   <div className="space-y-2">
-                    {FUNCTION_OPTIONS.map((option) => (
-                      <label key={option} className="flex items-center">
+                    {(categories?.functions || []).map((option) => (
+                      <label key={option.value} className="flex items-center">
                         <input
                           type="checkbox"
-                          checked={preferences.function.includes(option)}
-                          onChange={() => handleFilterChange("function", option)}
+                          checked={preferences.function.includes(option.value)}
+                          onChange={() => handleFilterChange("function", option.value)}
                           className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                         />
-                        <span className="ml-2 text-sm text-gray-700">{option}</span>
+                        <span className="ml-2 text-sm text-gray-700">{option.label}</span>
                       </label>
                     ))}
                   </div>

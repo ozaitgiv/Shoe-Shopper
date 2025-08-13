@@ -11,6 +11,7 @@ from .views import (
     recommendations,
     delete_account,
     shoe_list_with_scores,
+    get_categories,
 )
 
 urlpatterns = [
@@ -32,4 +33,7 @@ urlpatterns = [
     # Shoes & Recommendations
     path("recommendations/", recommendations, name="recommendations"),
     path("shoes/", shoe_list_with_scores, name="shoe-list"),
+    
+    # Categories
+    path("categories/", get_categories, name="categories"),
 ]
