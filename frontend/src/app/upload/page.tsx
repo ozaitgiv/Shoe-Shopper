@@ -409,24 +409,40 @@ export default function Dashboard() {
     setIsProcessing(true)
 
     try {
-      const csrfResponse = await fetch(`${API_BASE_URL}/api/csrf/`, {
-        credentials: "include",
-      })
-      if (!csrfResponse.ok) throw new Error("Failed to get CSRF token")
-      const { csrfToken } = await csrfResponse.json()
+      // For guest uploads, we don't need CSRF tokens since the endpoint is @csrf_exempt
+      // Only get CSRF token for authenticated users
+      let csrfToken = ""
+      const token = localStorage.getItem("token")
+      const isGuest = localStorage.getItem("isGuest") === "true"
+      
+      if (!isGuest && token) {
+        try {
+          const csrfResponse = await fetch(`${API_BASE_URL}/api/csrf/`, {
+            credentials: "include",
+          })
+          if (csrfResponse.ok) {
+            const data = await csrfResponse.json()
+            csrfToken = data.csrfToken || ""
+          }
+        } catch (csrfError) {
+          console.warn("CSRF token fetch failed:", csrfError)
+          // Continue without CSRF token for authenticated users
+        }
+      }
 
       const formData = new FormData()
       formData.append("image", file)
       formData.append("paper_size", paperSize)
-
-      const token = localStorage.getItem("token")
-      const isGuest = localStorage.getItem("isGuest") === "true"
       
-      // Build headers - include auth token only for non-guests
-      const headers = {
-        "X-CSRFToken": csrfToken,
+      // Build headers
+      const headers = {}
+      
+      // Only include CSRF token for authenticated users (guests don't need it)
+      if (csrfToken && !isGuest) {
+        headers["X-CSRFToken"] = csrfToken
       }
       
+      // Include auth token for authenticated users
       if (!isGuest && token) {
         headers["Authorization"] = `Token ${token}`
       }
@@ -436,12 +452,20 @@ export default function Dashboard() {
         headers["X-Guest-Session-ID"] = guestSessionId
       }
 
-      const uploadResponse = await fetch(`${API_BASE_URL}/api/measurements/upload/`, {
+      // Build fetch options
+      const fetchOptions = {
         method: "POST",
         headers,
-        credentials: "include",
         body: formData,
-      })
+      }
+      
+      // Only include credentials for authenticated users
+      // Guest uploads work without credentials, avoiding mobile CORS issues
+      if (!isGuest && token) {
+        fetchOptions.credentials = "include"
+      }
+
+      const uploadResponse = await fetch(`${API_BASE_URL}/api/measurements/upload/`, fetchOptions)
 
       if (!uploadResponse.ok) {
         const errorData = await uploadResponse.json().catch(() => ({}))
