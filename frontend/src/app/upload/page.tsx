@@ -28,7 +28,74 @@ const BRAND_OPTIONS = [
   "Thursday",
   "Vivobarefoot",
 ]
-const FUNCTION_OPTIONS = ["Casual", "Hiking", "Work", "Running"]
+const FUNCTION_OPTIONS = ["casual", "hiking", "work", "running"]
+
+// Cache configuration
+const CACHE_DURATION_HOURS = 1
+const CACHE_KEYS = {
+  CATEGORIES: 'categoriesCache',
+  CATEGORIES_TIME: 'categoriesCacheTime'
+} as const
+
+interface CategoryOption {
+  value: string
+  label: string
+}
+
+interface Categories {
+  companies: string[]
+  genders: CategoryOption[]
+  widths: CategoryOption[]
+  functions: CategoryOption[]
+}
+
+// Type validation for cached data
+const validateCategories = (data: any): data is Categories => {
+  return data && 
+         typeof data === 'object' &&
+         Array.isArray(data.companies) &&
+         Array.isArray(data.genders) &&
+         Array.isArray(data.widths) &&
+         Array.isArray(data.functions) &&
+         data.genders.every((g: any) => g && typeof g.value === 'string' && typeof g.label === 'string') &&
+         data.widths.every((w: any) => w && typeof w.value === 'string' && typeof w.label === 'string') &&
+         data.functions.every((f: any) => f && typeof f.value === 'string' && typeof f.label === 'string')
+}
+
+// Fallback categories to eliminate code duplication
+const createFallbackCategories = (): Categories => ({
+  companies: BRAND_OPTIONS,
+  genders: [
+    { value: "M", label: "Men" },
+    { value: "W", label: "Women" }, 
+    { value: "U", label: "Unisex" }
+  ],
+  widths: [
+    { value: "N", label: "Narrow" },
+    { value: "D", label: "Regular" },
+    { value: "W", label: "Wide" }
+  ],
+  functions: FUNCTION_OPTIONS.map(f => ({ value: f, label: f.charAt(0).toUpperCase() + f.slice(1) }))
+})
+
+// Safe cache operations
+const saveToCache = (data: Categories): void => {
+  try {
+    localStorage.setItem(CACHE_KEYS.CATEGORIES, JSON.stringify(data))
+    localStorage.setItem(CACHE_KEYS.CATEGORIES_TIME, Date.now().toString())
+  } catch (error) {
+    console.warn('Failed to cache categories - continuing without cache:', error)
+  }
+}
+
+const clearCache = (): void => {
+  try {
+    localStorage.removeItem(CACHE_KEYS.CATEGORIES)
+    localStorage.removeItem(CACHE_KEYS.CATEGORIES_TIME)
+  } catch (error) {
+    console.warn('Failed to clear category cache:', error)
+  }
+}
 
 interface AppUser {
   id: number
@@ -69,6 +136,7 @@ export default function Dashboard() {
   const [locationDetected, setLocationDetected] = useState(false)
   const [detectedCountry, setDetectedCountry] = useState<string | null>(null)
   const [guestSessionId, setGuestSessionId] = useState<string | null>(null)
+  const [categories, setCategories] = useState<Categories | null>(null)
 
   const [filters, setFilters] = useState<UserPreferences>({
     gender: [],
@@ -98,11 +166,72 @@ export default function Dashboard() {
     }
   }
 
+  const loadCategories = async () => {
+    try {
+      // Check cache first with validation
+      const cachedData = localStorage.getItem(CACHE_KEYS.CATEGORIES)
+      const cacheTime = localStorage.getItem(CACHE_KEYS.CATEGORIES_TIME)
+      
+      if (cachedData && cacheTime) {
+        const hoursSinceCache = (Date.now() - parseInt(cacheTime)) / (1000 * 60 * 60)
+        if (hoursSinceCache < CACHE_DURATION_HOURS) {
+          try {
+            const parsedData = JSON.parse(cachedData)
+            if (validateCategories(parsedData)) {
+              setCategories(parsedData)
+              console.log("✅ Loaded validated cached categories")
+              return
+            } else {
+              console.warn("Cached categories failed validation, clearing cache")
+              clearCache()
+            }
+          } catch (parseError) {
+            console.warn("Failed to parse cached categories, clearing cache:", parseError)
+            clearCache()
+          }
+        } else {
+          console.log("Cache expired, clearing and fetching fresh data")
+          clearCache()
+        }
+      }
+      
+      // Fetch fresh categories from API
+      const response = await fetch(`${API_BASE_URL}/api/categories/`)
+      if (response.ok) {
+        const categoryData = await response.json()
+        
+        if (validateCategories(categoryData)) {
+          setCategories(categoryData)
+          saveToCache(categoryData)
+          console.log("✅ Loaded and cached fresh categories")
+        } else {
+          console.warn("API returned invalid category structure, using fallback")
+          const fallbackCategories = createFallbackCategories()
+          setCategories(fallbackCategories)
+        }
+      } else {
+        if (response.status === 429) {
+          console.warn("Rate limit exceeded, using fallback categories")
+        } else {
+          console.warn(`API request failed with status ${response.status}, using fallback`)
+        }
+        const fallbackCategories = createFallbackCategories()
+        setCategories(fallbackCategories)
+      }
+    } catch (error) {
+      console.error("Error loading categories, using fallback:", error)
+      const fallbackCategories = createFallbackCategories()
+      setCategories(fallbackCategories)
+    }
+  }
+
   // Check authentication and get user info
   useEffect(() => {
     checkAuth()
     // Initialize guest session ID for guest users
     initializeGuestSession()
+    // Load dynamic categories
+    loadCategories()
   }, [])
 
   // Set default paper size based on user's location
@@ -593,22 +722,22 @@ export default function Dashboard() {
                     <div className="flex items-center justify-between mb-3">
                       <h4 className="font-medium text-gray-900">Gender</h4>
                       <button
-                        onClick={() => handleSelectAll("gender", GENDER_OPTIONS)}
+                        onClick={() => handleSelectAll("gender", (categories?.genders || []).map(g => g.label))}
                         className="text-xs text-blue-600 hover:text-blue-700"
                       >
-                        {isAllSelected("gender", GENDER_OPTIONS) ? "Deselect All" : "Select All"}
+                        {isAllSelected("gender", (categories?.genders || []).map(g => g.label)) ? "Deselect All" : "Select All"}
                       </button>
                     </div>
                     <div className="space-y-2">
-                      {GENDER_OPTIONS.map((option) => (
-                        <label key={option} className="flex items-center">
+                      {(categories?.genders || []).map((option) => (
+                        <label key={option.value} className="flex items-center">
                           <input
                             type="checkbox"
-                            checked={filters.gender.includes(option)}
-                            onChange={() => handleFilterChange("gender", option)}
+                            checked={filters.gender.includes(option.label)}
+                            onChange={() => handleFilterChange("gender", option.label)}
                             className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                           />
-                          <span className="ml-2 text-sm text-gray-700">{option}</span>
+                          <span className="ml-2 text-sm text-gray-700">{option.label}</span>
                         </label>
                       ))}
                     </div>
@@ -619,14 +748,14 @@ export default function Dashboard() {
                     <div className="flex items-center justify-between mb-3">
                       <h4 className="font-medium text-gray-900">Brand</h4>
                       <button
-                        onClick={() => handleSelectAll("brand", BRAND_OPTIONS)}
+                        onClick={() => handleSelectAll("brand", categories?.companies || [])}
                         className="text-xs text-blue-600 hover:text-blue-700"
                       >
-                        {isAllSelected("brand", BRAND_OPTIONS) ? "Deselect All" : "Select All"}
+                        {isAllSelected("brand", categories?.companies || []) ? "Deselect All" : "Select All"}
                       </button>
                     </div>
                     <div className="space-y-2 max-h-48 overflow-y-auto">
-                      {BRAND_OPTIONS.map((option) => (
+                      {(categories?.companies || []).map((option) => (
                         <label key={option} className="flex items-center">
                           <input
                             type="checkbox"
@@ -645,22 +774,22 @@ export default function Dashboard() {
                     <div className="flex items-center justify-between mb-3">
                       <h4 className="font-medium text-gray-900">Function</h4>
                       <button
-                        onClick={() => handleSelectAll("function", FUNCTION_OPTIONS)}
+                        onClick={() => handleSelectAll("function", (categories?.functions || []).map(f => f.value))}
                         className="text-xs text-blue-600 hover:text-blue-700"
                       >
-                        {isAllSelected("function", FUNCTION_OPTIONS) ? "Deselect All" : "Select All"}
+                        {isAllSelected("function", (categories?.functions || []).map(f => f.value)) ? "Deselect All" : "Select All"}
                       </button>
                     </div>
                     <div className="space-y-2">
-                      {FUNCTION_OPTIONS.map((option) => (
-                        <label key={option} className="flex items-center">
+                      {(categories?.functions || []).map((option) => (
+                        <label key={option.value} className="flex items-center">
                           <input
                             type="checkbox"
-                            checked={filters.function.includes(option)}
-                            onChange={() => handleFilterChange("function", option)}
+                            checked={filters.function.includes(option.value)}
+                            onChange={() => handleFilterChange("function", option.value)}
                             className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                           />
-                          <span className="ml-2 text-sm text-gray-700">{option}</span>
+                          <span className="ml-2 text-sm text-gray-700">{option.label}</span>
                         </label>
                       ))}
                     </div>
