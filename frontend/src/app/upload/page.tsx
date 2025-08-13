@@ -68,6 +68,7 @@ export default function Dashboard() {
   const [paperSize, setPaperSize] = useState<"letter" | "a4">("letter")
   const [locationDetected, setLocationDetected] = useState(false)
   const [detectedCountry, setDetectedCountry] = useState<string | null>(null)
+  const [guestSessionId, setGuestSessionId] = useState<string | null>(null)
 
   const [filters, setFilters] = useState<UserPreferences>({
     gender: [],
@@ -286,6 +287,12 @@ export default function Dashboard() {
       }
 
       const uploadData = await uploadResponse.json()
+      
+      // Store guest session ID if provided
+      if (uploadData.guest_session_id) {
+        setGuestSessionId(uploadData.guest_session_id)
+      }
+      
       await pollForResults(uploadData.measurement_id)
     } catch (error) {
       console.error("Upload failed:", error)
@@ -306,6 +313,11 @@ export default function Dashboard() {
         const headers = {}
         if (!isGuest && token) {
           headers["Authorization"] = `Token ${token}`
+        }
+        
+        // Include guest session ID if available
+        if (guestSessionId) {
+          headers["X-Guest-Session-ID"] = guestSessionId
         }
 
         const response = await fetch(`${API_BASE_URL}/api/measurements/${measurementId}/`, {
@@ -376,6 +388,7 @@ export default function Dashboard() {
     setMeasurementResult(null)
     setError(null)
     setUploadProgress(0)
+    setGuestSessionId(null)
   }
 
   const handleFilterChange = (category: keyof UserPreferences, value: string) => {
