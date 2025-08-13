@@ -450,18 +450,21 @@ class E2EPerformanceTest(TransactionTestCase):
         """Test recommendation performance with large shoe database"""
         mock_process.return_value = (10.5, 4.0, 42.0, 28.0, None)
         
-        # Upload foot measurement
+        # Upload foot measurement with guest session
         test_image = SimpleUploadedFile(
             'perf_test_foot.jpg',
             create_test_image(),
             content_type='image/jpeg'
         )
         
+        import uuid
+        guest_session_id = str(uuid.uuid4())
+        
         start_time = time.time()
         
         response = self.client.post('/api/measurements/upload/', {
             'image': test_image
-        })
+        }, HTTP_X_GUEST_SESSION_ID=guest_session_id)
         
         upload_time = time.time() - start_time
         self.assertEqual(response.status_code, 201)
@@ -469,7 +472,8 @@ class E2EPerformanceTest(TransactionTestCase):
         # Get recommendations
         start_time = time.time()
         
-        response = self.client.get('/api/recommendations/')
+        response = self.client.get('/api/recommendations/', 
+                                 HTTP_X_GUEST_SESSION_ID=guest_session_id)
         
         recommendation_time = time.time() - start_time
         self.assertEqual(response.status_code, 200)
@@ -501,27 +505,41 @@ class E2EPerformanceTest(TransactionTestCase):
                 from django.test import Client
                 clients.append(Client())
                 
-            # Each client uploads a foot image
+            # Each client uploads a foot image with proper guest session handling
             for i, client in enumerate(clients):
                 test_image = SimpleUploadedFile(
                     f'concurrent_foot_{i}.jpg',
-                    f'concurrent test foot image {i}'.encode(),
+                    create_test_image(),
                     content_type='image/jpeg'
                 )
                 
+                # Generate and use guest session ID for proper isolation
+                import uuid
+                guest_session_id = str(uuid.uuid4())
+                
                 response = client.post('/api/measurements/upload/', {
                     'image': test_image
-                })
+                }, HTTP_X_GUEST_SESSION_ID=guest_session_id)
                 
-                responses.append(response)
+                responses.append((response, client, guest_session_id))
                 
-        # Verify all uploads succeeded
-        for response in responses:
+        # Verify all uploads succeeded and collect measurement IDs
+        client_data = []
+        for response, client, guest_session_id in responses:
             self.assertEqual(response.status_code, 201)
+            data = response.json()
+            client_data.append((data['measurement_id'], client, guest_session_id))
             
         # Verify each client can get their own recommendations
-        for client in clients:
-            response = client.get('/api/recommendations/')
+        for measurement_id, client, guest_session_id in client_data:
+            # First, check that the measurement is complete (with proper guest session)
+            detail_response = client.get(f'/api/measurements/{measurement_id}/', 
+                                       HTTP_X_GUEST_SESSION_ID=guest_session_id)
+            self.assertEqual(detail_response.status_code, 200)
+            
+            # Then get recommendations (with proper guest session)
+            response = client.get('/api/recommendations/', 
+                                HTTP_X_GUEST_SESSION_ID=guest_session_id)
             self.assertEqual(response.status_code, 200)
             
             data = response.json()
