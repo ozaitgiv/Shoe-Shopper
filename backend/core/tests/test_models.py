@@ -3,7 +3,7 @@ from django.contrib.auth.models import User
 from decimal import Decimal
 from unittest.mock import patch
 
-from .models import FootImage, Shoe
+from core.models import FootImage, Shoe
 
 
 class FootImageModelTest(TestCase):

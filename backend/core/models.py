@@ -1,8 +1,46 @@
 from django.db import models
 from django.contrib.auth.models import User
+import uuid
+from django.utils import timezone
+from datetime import timedelta
+
+
+class GuestSession(models.Model):
+    """
+    Unique session identifiers for guest users with automatic expiration.
+    Provides better isolation than Django sessions for concurrent guest users.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_accessed = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'core_guest_session'
+        indexes = [
+            models.Index(fields=['created_at']),
+            models.Index(fields=['last_accessed']),
+        ]
+    
+    def is_expired(self):
+        """Check if session is older than 1 hour"""
+        return timezone.now() - self.created_at > timedelta(hours=1)
+    
+    @classmethod
+    def cleanup_expired(cls):
+        """Remove guest sessions older than 1 hour"""
+        cutoff_time = timezone.now() - timedelta(hours=1)
+        expired_sessions = cls.objects.filter(created_at__lt=cutoff_time)
+        count = expired_sessions.count()
+        expired_sessions.delete()
+        return count
+    
+    def __str__(self):
+        return f"GuestSession {str(self.id)[:8]}... (created {self.created_at})"
+
 
 class FootImage(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='foot_images', null=True, blank=True)  # Allow null for guests  
+    guest_session = models.ForeignKey(GuestSession, on_delete=models.CASCADE, related_name='foot_images', null=True, blank=True)  # New UUID-based guest tracking
     image = models.ImageField(upload_to='foot_images/')
     uploaded_at = models.DateTimeField(auto_now_add=True)
     
@@ -21,7 +59,10 @@ class FootImage(models.Model):
     def __str__(self):
         if self.user:
             return f"FootImage {self.id} by {self.user.username}"
+        elif self.guest_session:
+            return f"FootImage {self.id} by Guest ({str(self.guest_session.id)[:8]}...)"
         elif self.error_message and self.error_message.startswith('GUEST_SESSION:'):
+            # Backward compatibility for old session format
             session_id = self.error_message.replace('GUEST_SESSION:', '')[:8]
             return f"FootImage {self.id} by Guest ({session_id}...)"
         else:

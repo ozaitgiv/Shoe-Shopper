@@ -25,7 +25,7 @@ from PIL import Image
 import tempfile
 import random
 
-from .models import FootImage, Shoe
+from core.models import FootImage, Shoe
 
 
 def create_test_image(width=100, height=100, format='JPEG'):
@@ -55,7 +55,7 @@ class ViewsStrategicImageProcessingTest(TestCase):
             ]
         }
         
-        from .views import process_foot_image_enhanced
+        from core.views import process_foot_image_enhanced
         
         # Test letter paper size
         result = process_foot_image_enhanced('/fake/path.jpg', 'letter')
@@ -86,7 +86,7 @@ class ViewsStrategicImageProcessingTest(TestCase):
             ]
         }
         
-        from .views import process_foot_image_enhanced
+        from core.views import process_foot_image_enhanced
         result = process_foot_image_enhanced('/fake/path.jpg')
         
         self.assertEqual(len(result), 5)
@@ -110,7 +110,7 @@ class ViewsStrategicImageProcessingTest(TestCase):
             ]
         }
         
-        from .views import process_foot_image_enhanced
+        from core.views import process_foot_image_enhanced
         result = process_foot_image_enhanced('/fake/path.jpg')
         
         self.assertEqual(len(result), 5)
@@ -146,10 +146,13 @@ class ViewsStrategicUploadTest(TestCase):
         # Cleanup should have been called
         mock_cleanup.assert_called_once()
         
-        # Verify guest session was stored
+        # Verify guest session was stored (new UUID-based system)
         foot_image = FootImage.objects.get(id=response.json()['measurement_id'])
-        self.assertIsNotNone(foot_image.error_message)
-        self.assertTrue(foot_image.error_message.startswith('GUEST_SESSION:'))
+        self.assertIsNotNone(foot_image.guest_session)
+        # Verify response includes guest session ID
+        response_data = response.json()
+        self.assertIn('guest_session_id', response_data)
+        self.assertEqual(str(foot_image.guest_session.id), response_data['guest_session_id'])
     
     @patch('core.views.process_foot_image_enhanced')
     @patch('random.random')
@@ -260,7 +263,7 @@ class ViewsStrategicAPIEndpointsTest(TestCase):
     
     def test_shoe_list_deprecated_endpoint(self):
         """Test deprecated shoe_list function (lines 797-818)"""
-        from .views import shoe_list
+        from core.views import shoe_list
         from django.http import HttpRequest
         
         request = HttpRequest()
@@ -274,7 +277,7 @@ class ViewsStrategicAPIEndpointsTest(TestCase):
     
     def test_shoe_detail_deprecated_endpoint(self):
         """Test deprecated shoe_detail function (lines 825-830)"""
-        from .views import shoe_detail
+        from core.views import shoe_detail
         from django.http import HttpRequest
         
         request = HttpRequest()
@@ -296,7 +299,7 @@ class ViewsStrategicAPIEndpointsTest(TestCase):
             length_inches=10.5, width_inches=4.0
         )
         
-        from .views import shoe_recommendations
+        from core.views import shoe_recommendations
         from django.http import HttpRequest
         
         request = HttpRequest()
@@ -354,17 +357,18 @@ class ViewsStrategicGuestSessionTest(TestCase):
     
     def test_get_latest_measurement_guest_edge_case(self):
         """Test get_latest_measurement guest session edge case (line 1081)"""
+        # Create a session and get the session key
+        session = self.client.session
+        session['dummy'] = 'value'  # Force session creation
+        session.save()
+        session_key = session.session_key
+        
         # Create guest measurement with session
         FootImage.objects.create(
             user=None, image='guest.jpg', status='complete',
             length_inches=10.5, width_inches=4.0,
-            error_message='GUEST_SESSION:edge_case_123'
+            error_message=f'GUEST_SESSION:{session_key}'
         )
-        
-        # Set up matching session
-        session = self.client.session
-        session['guest_session_id'] = 'edge_case_123'
-        session.save()
         
         response = self.client.get('/api/measurements/latest/')
         
@@ -379,7 +383,7 @@ class ViewsStrategicParametrizedTest(TestCase):
     
     def test_parse_predictions_various_formats(self):
         """Test parse_predictions with multiple input formats"""
-        from .views import parse_predictions
+        from core.views import parse_predictions
         
         test_cases = [
             # Empty predictions
@@ -407,7 +411,7 @@ class ViewsStrategicParametrizedTest(TestCase):
     
     def test_enhanced_scoring_edge_cases(self):
         """Test enhanced scoring functions with edge cases"""
-        from .views import enhanced_score_shoe, enhanced_score_shoe_4d
+        from core.views import enhanced_score_shoe, enhanced_score_shoe_4d
         
         edge_cases = [
             # Zero values

@@ -1,12 +1,12 @@
 from django.test import TestCase
 from decimal import Decimal
 
-from .views import (
+from core.views import (
     enhanced_score_shoe, enhanced_score_shoe_4d, 
     estimate_foot_area_from_dimensions, estimate_foot_perimeter_from_dimensions,
     get_real_shoe_dimensions_4d
 )
-from .models import Shoe
+from core.models import Shoe
 
 
 class ScoringAlgorithmTest(TestCase):

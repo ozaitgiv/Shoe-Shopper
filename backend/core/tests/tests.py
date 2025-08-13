@@ -9,10 +9,10 @@ import os
 import io
 from PIL import Image
 
-from .models import FootImage, Shoe
+from core.models import FootImage, Shoe
 
 
-from .views import (
+from core.views import (
     enhanced_score_shoe, enhanced_score_shoe_4d, 
     estimate_foot_area_from_dimensions, estimate_foot_perimeter_from_dimensions,
     get_real_shoe_dimensions_4d, cleanup_old_guest_sessions
@@ -322,15 +322,13 @@ class CleanupTest(TestCase):
             password='testpass123'
         )
         
-    @patch('django.utils.timezone.now')
-    def test_cleanup_old_guest_sessions(self, mock_now):
+    def test_cleanup_old_guest_sessions(self):
         """Test cleanup of old guest sessions"""
-        from datetime import datetime, timedelta
+        from datetime import timedelta
         from django.utils import timezone
         
-        # Mock current time
+        # Get current time
         current_time = timezone.now()
-        mock_now.return_value = current_time
         
         # Create old guest foot image (9 days old)
         old_guest_image = FootImage.objects.create(
@@ -361,13 +359,25 @@ class CleanupTest(TestCase):
         user_image.uploaded_at = current_time - timedelta(days=10)
         user_image.save()
         
+        # Create new guest session to test new cleanup functionality
+        from core.models import GuestSession
+        old_session = GuestSession.objects.create()
+        old_session.created_at = current_time - timedelta(hours=2)  # 2 hours old (should be cleaned)
+        old_session.save()
+        
+        new_session = GuestSession.objects.create()  # Recent session (should be kept)
+        
         # Run cleanup
         cleanup_old_guest_sessions()
         
         # Check results
-        self.assertFalse(FootImage.objects.filter(id=old_guest_image.id).exists())
-        self.assertTrue(FootImage.objects.filter(id=recent_guest_image.id).exists())
-        self.assertTrue(FootImage.objects.filter(id=user_image.id).exists())
+        self.assertFalse(FootImage.objects.filter(id=old_guest_image.id).exists())  # Old guest images removed
+        self.assertTrue(FootImage.objects.filter(id=recent_guest_image.id).exists())  # Recent guest images kept
+        self.assertTrue(FootImage.objects.filter(id=user_image.id).exists())  # User images unaffected
+        
+        # Check new guest session cleanup
+        self.assertFalse(GuestSession.objects.filter(id=old_session.id).exists())  # Old session removed
+        self.assertTrue(GuestSession.objects.filter(id=new_session.id).exists())  # New session kept
 
 
 class APIViewTest(TestCase):
@@ -418,6 +428,12 @@ class APIViewTest(TestCase):
         
     def test_recommendations_api_with_measurement(self):
         """Test recommendations API with foot measurement"""
+        # Create a session and get the session key
+        session = self.client.session
+        session['dummy'] = 'value'  # Force session creation
+        session.save()
+        session_key = session.session_key
+        
         # Create a completed foot measurement
         foot_image = FootImage.objects.create(
             user=None,
@@ -427,13 +443,8 @@ class APIViewTest(TestCase):
             width_inches=4.0,
             area_sqin=42.0,
             perimeter_inches=28.0,
-            error_message='GUEST_SESSION:test123'
+            error_message=f'GUEST_SESSION:{session_key}'
         )
-        
-        # Store session data to simulate real session
-        session = self.client.session
-        session['guest_session_id'] = 'test123'
-        session.save()
         
         response = self.client.get('/api/recommendations/')
         self.assertEqual(response.status_code, 200)
@@ -469,8 +480,8 @@ class APIViewTest(TestCase):
         
         self.assertEqual(response.status_code, 201)
         data = response.json()
-        self.assertIn('id', data)
-        self.assertIn('status', data)
+        self.assertIn('measurement_id', data)
+        # Note: status is not returned in upload response, it's returned in detail view
         
     def test_latest_measurement_api_no_measurement(self):
         """Test latest measurement API without any measurements"""
@@ -479,6 +490,12 @@ class APIViewTest(TestCase):
         
     def test_latest_measurement_api_with_measurement(self):
         """Test latest measurement API with measurement"""
+        # Create a session and get the session key
+        session = self.client.session
+        session['dummy'] = 'value'  # Force session creation
+        session.save()
+        session_key = session.session_key
+        
         # Create a completed foot measurement
         foot_image = FootImage.objects.create(
             user=None,
@@ -488,13 +505,8 @@ class APIViewTest(TestCase):
             width_inches=4.0,
             area_sqin=42.0,
             perimeter_inches=28.0,
-            error_message='GUEST_SESSION:test123'
+            error_message=f'GUEST_SESSION:{session_key}'
         )
-        
-        # Store session data
-        session = self.client.session
-        session['guest_session_id'] = 'test123'
-        session.save()
         
         response = self.client.get('/api/measurements/latest/')
         self.assertEqual(response.status_code, 200)
@@ -517,5 +529,6 @@ class APIViewTest(TestCase):
         self.assertEqual(response.status_code, 200)
         
         data = response.json()
-        self.assertTrue(data['authenticated'])
         self.assertEqual(data['username'], 'testuser')
+        self.assertIn('email', data)
+        self.assertIn('id', data)

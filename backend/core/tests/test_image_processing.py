@@ -10,8 +10,8 @@ import tempfile
 import os
 import json
 
-from .models import FootImage, Shoe
-from .views import (
+from core.models import FootImage, Shoe
+from core.views import (
     parse_predictions,
     process_foot_segmentation_data,
     calculate_hybrid_measurements,

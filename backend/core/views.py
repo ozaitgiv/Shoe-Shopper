@@ -46,29 +46,138 @@ SHOE_AREA_SHAPE_FACTOR = 0.75  # Slightly larger than foot
 
 # Removed CRITICAL_LENGTH_THRESHOLD - using smooth penalty curves instead
 
+def get_or_create_guest_session(request):
+    """
+    Get or create a unique guest session for better isolation.
+    Returns tuple (guest_session, is_new_session)
+    """
+    try:
+        # Try to get guest session ID from request headers or session
+        guest_session_id = request.headers.get('X-Guest-Session-ID')
+        
+        if guest_session_id:
+            try:
+                # Validate it's a proper UUID and get the session
+                import uuid
+                uuid.UUID(guest_session_id)  # Validate UUID format
+                guest_session = GuestSession.objects.get(id=guest_session_id)
+                
+                # Check if session is expired
+                if guest_session.is_expired():
+                    logger.info("Guest session expired, creating new one", extra={
+                        'expired_session_id': str(guest_session_id)[:8] + '...'
+                    })
+                    guest_session.delete()
+                    guest_session = GuestSession.objects.create()
+                    return guest_session, True
+                else:
+                    # Update last_accessed timestamp
+                    guest_session.save()  # This triggers auto_now on last_accessed
+                    return guest_session, False
+                    
+            except (ValueError, GuestSession.DoesNotExist):
+                # Invalid UUID or session doesn't exist, create new one
+                logger.info("Invalid or non-existent guest session, creating new one")
+                guest_session = GuestSession.objects.create()
+                return guest_session, True
+        else:
+            # No session ID provided, create new one
+            guest_session = GuestSession.objects.create()
+            logger.info("No guest session provided, created new one", extra={
+                'session_id': str(guest_session.id)[:8] + '...'
+            })
+            return guest_session, True
+            
+    except Exception as e:
+        logger.error(f"Error managing guest session: {str(e)}")
+        # Fallback: create new session
+        guest_session = GuestSession.objects.create()
+        return guest_session, True
+
+
+def get_guest_foot_image(request):
+    """
+    Get the latest completed foot image for a guest user.
+    Handles both new UUID-based sessions and old session format for backward compatibility.
+    """
+    # Try new UUID-based session first
+    guest_session_id = request.headers.get('X-Guest-Session-ID')
+    if guest_session_id:
+        try:
+            import uuid
+            uuid.UUID(guest_session_id)  # Validate UUID format
+            guest_session = GuestSession.objects.get(id=guest_session_id)
+            
+            # Don't check expiry here - let user see their data even if session is expired
+            foot_image = FootImage.objects.filter(
+                guest_session=guest_session,
+                status='complete'
+            ).order_by('-uploaded_at').first()
+            
+            if foot_image:
+                logger.info("Found foot image using new guest session", extra={
+                    'session_id': str(guest_session_id)[:8] + '...',
+                    'found_image': True
+                })
+                return foot_image
+                
+        except (ValueError, GuestSession.DoesNotExist):
+            logger.info("Invalid or non-existent UUID guest session")
+    
+    # Fallback to old Django session format for backward compatibility
+    session_key = request.session.session_key
+    if session_key:
+        foot_image = FootImage.objects.filter(
+            user__isnull=True,
+            guest_session__isnull=True,  # Only old format
+            status='complete',
+            error_message__startswith=f'GUEST_SESSION:{session_key}'
+        ).order_by('-uploaded_at').first()
+        
+        if foot_image:
+            logger.info("Found foot image using old session format", extra={
+                'session_key': session_key[:8] + '...',
+                'found_image': True
+            })
+            return foot_image
+    
+    logger.info("No foot image found for guest user")
+    return None
+
+
 def cleanup_old_guest_sessions():
-    """Clean up guest sessions older than 7 days to prevent database bloat"""
+    """Clean up both old and new guest session formats"""
     from datetime import datetime, timedelta
     from django.utils import timezone
     
-    cutoff_date = timezone.now() - timedelta(days=7)
+    total_cleaned = 0
     
     try:
-        # Delete old guest foot images
+        # Clean up new UUID-based guest sessions (1 hour expiry)
+        uuid_cleaned = GuestSession.cleanup_expired()
+        total_cleaned += uuid_cleaned
+        logger.info(f"Cleaned up {uuid_cleaned} expired UUID guest sessions")
+        
+        # Clean up old session format (7 days for backward compatibility)
+        cutoff_date = timezone.now() - timedelta(days=7)
         old_guest_images = FootImage.objects.filter(
             user__isnull=True,
+            guest_session__isnull=True,  # Only old format
             error_message__startswith='GUEST_SESSION:',
             uploaded_at__lt=cutoff_date
         )
         
-        count = old_guest_images.count()
+        old_count = old_guest_images.count()
         old_guest_images.delete()
+        total_cleaned += old_count
         
-        logger.info(f"Cleaned up {count} old guest sessions")
-        return count
+        logger.info(f"Cleaned up {old_count} old format guest sessions")
+        logger.info(f"Total guest sessions cleaned: {total_cleaned}")
+        return total_cleaned
+        
     except Exception as e:
         logger.error(f"Error cleaning up guest sessions: {str(e)}")
-        return 0
+        return total_cleaned
 
 from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.utils.decorators import method_decorator
@@ -87,7 +196,7 @@ from rest_framework.authtoken.models import Token
 
 
 # === FOOT IMAGE PROCESSING FUNCTIONS ===
-from .models import FootImage, Shoe
+from .models import FootImage, Shoe, GuestSession
 from .serializers import FootImageSerializer, ShoeSerializer
 
 def process_foot_image_enhanced(image_path, paper_size="letter"):
@@ -821,36 +930,45 @@ class FootImageUploadView(APIView):
             # Handle both authenticated users and guests
             user = request.user if request.user.is_authenticated else None
             
-            # For guests, ensure we have a session
-            guest_session_key = None
+            # For guests, get or create a unique guest session
+            guest_session = None
+            guest_session_key = None  # Keep for backward compatibility
             if not user:
-                if not request.session.session_key:
-                    request.session.create()
-                guest_session_key = request.session.session_key
-                logger.info("Guest session created/retrieved", extra={
-                    'session_key': guest_session_key[:8] + '...'  # Log partial key for debugging
+                guest_session, is_new_session = get_or_create_guest_session(request)
+                logger.info("Guest session retrieved/created", extra={
+                    'session_id': str(guest_session.id)[:8] + '...',
+                    'is_new': is_new_session
                 })
+                
+                # Fallback to old session system if new system fails
+                if not guest_session:
+                    if not request.session.session_key:
+                        request.session.create()
+                    guest_session_key = request.session.session_key
+                    logger.info("Fallback to old session system", extra={
+                        'session_key': guest_session_key[:8] + '...' if guest_session_key else None
+                    })
             
             serializer = FootImageSerializer(data=request.data)
             if serializer.is_valid():
                 logger.info("FootImage serializer validation successful")
-                instance = serializer.save(user=user)
+                instance = serializer.save(user=user, guest_session=guest_session)
                 
-                # For guests, store session key in error_message field temporarily
-                # This is a safe approach that doesn't require database schema changes
-                if guest_session_key:
+                # Backward compatibility: still store old session format if no guest_session
+                if not guest_session and guest_session_key:
                     instance.error_message = f"GUEST_SESSION:{guest_session_key}"
                     instance.save()
-                    
-                    # Occasionally cleanup old guest sessions (10% chance)
-                    import random
-                    if random.random() < 0.1:  # 10% chance
-                        cleanup_old_guest_sessions()
+                
+                # Occasionally cleanup old guest sessions (10% chance)
+                import random
+                if random.random() < 0.1:  # 10% chance
+                    cleanup_old_guest_sessions()
                 
                 logger.info("FootImage instance created", extra={
                     'instance_id': instance.id,
                     'is_guest': user is None,
-                    'has_session': guest_session_key is not None
+                    'has_new_session': guest_session is not None,
+                    'has_old_session': guest_session_key is not None
                 })
                 
                 try:
@@ -894,7 +1012,13 @@ class FootImageUploadView(APIView):
                     instance.error_message = f"Unexpected error: {str(e)}"
                     instance.save()
 
-                return Response({ "measurement_id": instance.id }, status=status.HTTP_201_CREATED)
+                response_data = {"measurement_id": instance.id}
+                
+                # Include guest session ID in response for frontend to store
+                if guest_session:
+                    response_data["guest_session_id"] = str(guest_session.id)
+                
+                return Response(response_data, status=status.HTTP_201_CREATED)
             else:
                 logger.warning("FootImage serializer validation failed", extra={
                     'errors': serializer.errors
@@ -915,6 +1039,31 @@ class FootImageDetailView(APIView):
     
     def get(self, request, pk, format=None):
         foot_image = get_object_or_404(FootImage, pk=pk)
+        
+        # Authorization check: only allow access to own foot images
+        if foot_image.user:
+            # For authenticated user images, user must be authenticated and own the image
+            if not request.user.is_authenticated or foot_image.user != request.user:
+                return Response({'error': 'Access denied'}, status=status.HTTP_403_FORBIDDEN)
+        else:
+            # For guest images, check if guest has access via session
+            has_access = False
+            
+            # Check new UUID-based guest session
+            guest_session_id = request.headers.get('X-Guest-Session-ID')
+            if guest_session_id and foot_image.guest_session:
+                if str(foot_image.guest_session.id) == guest_session_id:
+                    has_access = True
+            
+            # Check old session format for backward compatibility
+            elif request.session.session_key and foot_image.error_message:
+                expected_session = f'GUEST_SESSION:{request.session.session_key}'
+                if foot_image.error_message.startswith(expected_session):
+                    has_access = True
+            
+            if not has_access:
+                return Response({'error': 'Access denied'}, status=status.HTTP_403_FORBIDDEN)
+        
         response_data = {
             "id": foot_image.id,
             "status": foot_image.status,
@@ -1020,47 +1169,51 @@ def shoe_list_with_scores(request):
     """Get all shoes with fit scores for authenticated users"""
     shoes = Shoe.objects.filter(is_active=True)
     
-    # If user is authenticated and has measurements, add fit scores
+    # Check for foot measurements (both authenticated users and guests)
+    foot_image = None
     if request.user.is_authenticated:
         foot_image = FootImage.objects.filter(
             user=request.user,
             status='complete'
         ).order_by('-uploaded_at').first()
+    else:
+        # For guests, use the helper function that handles both session formats
+        foot_image = get_guest_foot_image(request)
         
-        if foot_image and foot_image.length_inches and foot_image.width_inches:
-            user_length = foot_image.length_inches
-            user_width = foot_image.width_inches
+    if foot_image and foot_image.length_inches and foot_image.width_inches:
+        user_length = foot_image.length_inches
+        user_width = foot_image.width_inches
+        
+        result = []
+        for shoe in shoes:
+            shoe_length, shoe_width, shoe_area, shoe_perimeter = get_real_shoe_dimensions_4d(shoe)
             
-            result = []
-            for shoe in shoes:
-                shoe_length, shoe_width, shoe_area, shoe_perimeter = get_real_shoe_dimensions_4d(shoe)
-                
-                # Use 4D scoring if foot measurements available, otherwise fallback
-                if (foot_image.area_sqin is not None and foot_image.area_sqin > 0 and 
-                    foot_image.perimeter_inches is not None and foot_image.perimeter_inches > 0):
-                    logger.info("Using REAL 4D measurements for scoring", extra={
-                        'user_area': foot_image.area_sqin,
-                        'user_perimeter': foot_image.perimeter_inches
-                    })
-                    score = enhanced_score_shoe_4d(
-                        user_length, user_width, foot_image.area_sqin, foot_image.perimeter_inches,
-                        shoe_length, shoe_width, shoe_area, shoe_perimeter, shoe.function
-                    )
-                else:
-                    logger.info("Using ESTIMATED 4D measurements for scoring", extra={
-                        'area_available': foot_image.area_sqin,
-                        'perimeter_available': foot_image.perimeter_inches
-                    })
-                    # Fallback to legacy scoring for older measurements (which estimates area/perimeter)
-                    score = enhanced_score_shoe(user_length, user_width, shoe_length, shoe_width)
-                
-                data = ShoeSerializer(shoe, context={'request': request}).data
-                data['fit_score'] = score
-                result.append(data)
+            # Use 4D scoring if foot measurements available, otherwise fallback
+            if (foot_image.area_sqin is not None and foot_image.area_sqin > 0 and 
+                foot_image.perimeter_inches is not None and foot_image.perimeter_inches > 0):
+                logger.info("Using REAL 4D measurements for scoring", extra={
+                    'user_area': foot_image.area_sqin,
+                    'user_perimeter': foot_image.perimeter_inches
+                })
+                score = enhanced_score_shoe_4d(
+                    user_length, user_width, foot_image.area_sqin, foot_image.perimeter_inches,
+                    shoe_length, shoe_width, shoe_area, shoe_perimeter, shoe.function
+                )
+            else:
+                logger.info("Using ESTIMATED 4D measurements for scoring", extra={
+                    'area_available': foot_image.area_sqin,
+                    'perimeter_available': foot_image.perimeter_inches
+                })
+                # Fallback to legacy scoring for older measurements (which estimates area/perimeter)
+                score = enhanced_score_shoe(user_length, user_width, shoe_length, shoe_width)
             
-            # Sort by fit score
-            result.sort(key=lambda x: x.get('fit_score', 0), reverse=True)
-            return Response(result)
+            data = ShoeSerializer(shoe, context={'request': request}).data
+            data['fit_score'] = score
+            result.append(data)
+        
+        # Sort by fit score
+        result.sort(key=lambda x: x.get('fit_score', 0), reverse=True)
+        return Response(result)
     
     # For unauthenticated users or users without measurements
     serializer = ShoeSerializer(shoes, many=True, context={'request': request})
@@ -1120,23 +1273,8 @@ def recommendations(request):
             status='complete'
         ).order_by('-uploaded_at').first()
     else:
-        # For guests, filter by session key to isolate their data
-        session_key = request.session.session_key
-        if not session_key:
-            # No session means no previous uploads
-            foot_image = None
-        else:
-            # Find guest images that belong to this session
-            foot_image = FootImage.objects.filter(
-                user__isnull=True,
-                status='complete',
-                error_message__startswith=f'GUEST_SESSION:{session_key}'
-            ).order_by('-uploaded_at').first()
-            
-        logger.info("Guest recommendations query", extra={
-            'session_key': session_key[:8] + '...' if session_key else None,
-            'found_image': foot_image is not None
-        })
+        # For guests, use the new helper function that handles both session formats
+        foot_image = get_guest_foot_image(request)
     
     if not foot_image or foot_image.length_inches is None or foot_image.width_inches is None:
         return Response({
@@ -1219,16 +1357,8 @@ def get_latest_measurement(request):
         if request.user.is_authenticated:
             latest = FootImage.objects.filter(user=request.user, status='complete').order_by('-uploaded_at').first()
         else:
-            # For guests, filter by session key to isolate their data
-            session_key = request.session.session_key
-            if not session_key:
-                latest = None
-            else:
-                latest = FootImage.objects.filter(
-                    user__isnull=True,
-                    status='complete',
-                    error_message__startswith=f'GUEST_SESSION:{session_key}'
-                ).order_by('-uploaded_at').first()
+            # For guests, use the new helper function that handles both session formats
+            latest = get_guest_foot_image(request)
         
         if not latest:
             return Response({"error": "No measurements found"}, status=status.HTTP_404_NOT_FOUND)

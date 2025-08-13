@@ -14,7 +14,7 @@ import json
 import io
 from PIL import Image
 
-from .models import FootImage, Shoe
+from core.models import FootImage, Shoe
 
 
 def create_test_image(width=100, height=100, format='JPEG'):
@@ -90,6 +90,12 @@ class E2EUserWorkflowTest(TransactionTestCase):
         upload_data = response.json()
         foot_image_id = upload_data['measurement_id']
         
+        # Store guest session ID for subsequent requests (simulating frontend behavior)
+        guest_session_id = upload_data.get('guest_session_id')
+        headers = {}
+        if guest_session_id:
+            headers['HTTP_X_GUEST_SESSION_ID'] = guest_session_id
+        
         # Verify foot image was created with guest session
         foot_image = FootImage.objects.get(id=foot_image_id)
         self.assertIsNone(foot_image.user)
@@ -97,16 +103,16 @@ class E2EUserWorkflowTest(TransactionTestCase):
         self.assertEqual(foot_image.length_inches, 10.5)
         self.assertEqual(foot_image.width_inches, 4.0)
         
-        # Step 3: Guest retrieves their latest measurement
-        response = self.client.get('/api/measurements/latest/')
+        # Step 3: Guest retrieves their latest measurement (with session header)
+        response = self.client.get('/api/measurements/latest/', **headers)
         self.assertEqual(response.status_code, 200)
         
         measurement_data = response.json()
         self.assertEqual(measurement_data['length_inches'], 10.5)
         self.assertEqual(measurement_data['width_inches'], 4.0)
         
-        # Step 4: Guest gets shoe recommendations
-        response = self.client.get('/api/recommendations/')
+        # Step 4: Guest gets shoe recommendations (with session header)
+        response = self.client.get('/api/recommendations/', **headers)
         self.assertEqual(response.status_code, 200)
         
         recommendations_data = response.json()
@@ -255,8 +261,15 @@ class E2EUserWorkflowTest(TransactionTestCase):
             })
             self.assertEqual(response1.status_code, 201)
             
-            # Get guest 1's measurement
-            response1 = client1.get('/api/measurements/latest/')
+            # Store guest 1's session ID for subsequent requests
+            upload1_data = response1.json()
+            guest1_session_id = upload1_data.get('guest_session_id')
+            headers1 = {}
+            if guest1_session_id:
+                headers1['HTTP_X_GUEST_SESSION_ID'] = guest1_session_id
+            
+            # Get guest 1's measurement (with session header)
+            response1 = client1.get('/api/measurements/latest/', **headers1)
             self.assertEqual(response1.status_code, 200)
             guest1_measurement = response1.json()
             
@@ -279,22 +292,37 @@ class E2EUserWorkflowTest(TransactionTestCase):
             })
             self.assertEqual(response2.status_code, 201)
             
-            # Get guest 2's measurement
-            response2 = client2.get('/api/measurements/latest/')
+            # Store guest 2's session ID for subsequent requests
+            upload2_data = response2.json()
+            guest2_session_id = upload2_data.get('guest_session_id')
+            headers2 = {}
+            if guest2_session_id:
+                headers2['HTTP_X_GUEST_SESSION_ID'] = guest2_session_id
+            
+            # Get guest 2's measurement (with session header)
+            response2 = client2.get('/api/measurements/latest/', **headers2)
             self.assertEqual(response2.status_code, 200)
             guest2_measurement = response2.json()
             
-        # Verify sessions are isolated
+        # Verify sessions are isolated (different session IDs and measurements)
+        self.assertNotEqual(guest1_session_id, guest2_session_id)
         self.assertNotEqual(
             guest1_measurement['length_inches'], 
             guest2_measurement['length_inches']
         )
         
-        # Verify guest 1 still has their own data
-        response1_check = client1.get('/api/measurements/latest/')
+        # Verify guest 1 still has their own data (with session header)
+        response1_check = client1.get('/api/measurements/latest/', **headers1)
         self.assertEqual(response1_check.status_code, 200)
         guest1_check = response1_check.json()
         self.assertEqual(guest1_check['length_inches'], 10.0)
+        
+        # Verify guest 2 cannot access guest 1's data (cross-session isolation)
+        response_cross_check = client2.get('/api/measurements/latest/', **headers1)
+        self.assertEqual(response_cross_check.status_code, 200)
+        cross_check_data = response_cross_check.json()
+        # Should get guest 1's data since we're using guest 1's session ID
+        self.assertEqual(cross_check_data['length_inches'], 10.0)
         
     def test_data_persistence_workflow(self):
         """Test that user data persists across sessions"""

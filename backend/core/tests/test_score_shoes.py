@@ -9,8 +9,8 @@ from unittest.mock import patch, MagicMock
 import io
 import sys
 
-from .models import FootImage, Shoe
-from .score_shoes import (
+from core.models import FootImage, Shoe
+from core.score_shoes import (
     score_shoe, 
     get_shoe_dimensions, 
     main,

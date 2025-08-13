@@ -14,7 +14,7 @@ import os
 import io
 from PIL import Image
 
-from .models import FootImage, Shoe
+from core.models import FootImage, Shoe
 
 
 def create_test_image(width=100, height=100, format='JPEG'):
@@ -178,8 +178,9 @@ class ShoeListEndpointTest(TestCase):
         
         # Create guest session with foot measurement
         session = self.client.session
-        session['guest_session_id'] = 'test123'
+        session['dummy'] = 'value'  # Force session creation
         session.save()
+        session_key = session.session_key
         
         FootImage.objects.create(
             user=None,
@@ -189,7 +190,7 @@ class ShoeListEndpointTest(TestCase):
             width_inches=4.0,
             area_sqin=42.0,
             perimeter_inches=28.0,
-            error_message='GUEST_SESSION:test123'
+            error_message=f'GUEST_SESSION:{session_key}'
         )
         
         response = self.client.get('/api/shoes/')
@@ -524,10 +525,11 @@ class RecommendationsEndpointTest(TestCase):
         
     def test_recommendations_with_guest_measurement(self):
         """Test recommendations with guest measurement"""
-        # Set up guest session
+        # Create a session and get the session key
         session = self.client.session
-        session['guest_session_id'] = 'guest123'
+        session['dummy'] = 'value'  # Force session creation
         session.save()
+        session_key = session.session_key
         
         # Create guest measurement
         FootImage.objects.create(
@@ -538,7 +540,7 @@ class RecommendationsEndpointTest(TestCase):
             width_inches=4.0,
             area_sqin=42.0,
             perimeter_inches=28.0,
-            error_message='GUEST_SESSION:guest123'
+            error_message=f'GUEST_SESSION:{session_key}'
         )
         
         response = self.client.get('/api/recommendations/')
@@ -572,9 +574,11 @@ class RecommendationsEndpointTest(TestCase):
         
     def test_recommendations_sorted_by_score(self):
         """Test recommendations are sorted by fit score"""
+        # Create a session and get the session key
         session = self.client.session
-        session['guest_session_id'] = 'guest123'
+        session['dummy'] = 'value'  # Force session creation
         session.save()
+        session_key = session.session_key
         
         FootImage.objects.create(
             user=None,
@@ -584,7 +588,7 @@ class RecommendationsEndpointTest(TestCase):
             width_inches=4.0,
             area_sqin=42.0,
             perimeter_inches=28.0,
-            error_message='GUEST_SESSION:guest123'
+            error_message=f'GUEST_SESSION:{session_key}'
         )
         
         response = self.client.get('/api/recommendations/')
@@ -601,9 +605,11 @@ class RecommendationsEndpointTest(TestCase):
             
     def test_recommendations_includes_user_measurements(self):
         """Test recommendations response includes user measurements"""
+        # Create a session and get the session key
         session = self.client.session
-        session['guest_session_id'] = 'guest123'
+        session['dummy'] = 'value'  # Force session creation
         session.save()
+        session_key = session.session_key
         
         FootImage.objects.create(
             user=None,
@@ -613,7 +619,7 @@ class RecommendationsEndpointTest(TestCase):
             width_inches=4.0,
             area_sqin=42.0,
             perimeter_inches=28.0,
-            error_message='GUEST_SESSION:guest123'
+            error_message=f'GUEST_SESSION:{session_key}'
         )
         
         response = self.client.get('/api/recommendations/')
@@ -716,9 +722,11 @@ class FootImageDetailEndpointTest(TestCase):
         
     def test_foot_image_detail_guest_with_session(self):
         """Test foot image detail for guest with matching session"""
+        # Create a session and get the session key
         session = self.client.session
-        session['guest_session_id'] = 'guest123'
+        session['dummy'] = 'value'  # Force session creation
         session.save()
+        session_key = session.session_key
         
         foot_image = FootImage.objects.create(
             user=None,
@@ -726,7 +734,7 @@ class FootImageDetailEndpointTest(TestCase):
             status='complete',
             length_inches=10.5,
             width_inches=4.0,
-            error_message='GUEST_SESSION:guest123'
+            error_message=f'GUEST_SESSION:{session_key}'
         )
         
         response = self.client.get(f'/api/measurements/{foot_image.id}/')

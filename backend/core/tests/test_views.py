@@ -3,8 +3,8 @@ from django.contrib.auth.models import User
 from decimal import Decimal
 from unittest.mock import patch, MagicMock
 
-from .models import FootImage, Shoe
-from .views import (
+from core.models import FootImage, Shoe
+from core.views import (
     cleanup_old_guest_sessions,
     parse_predictions,
     estimate_perimeter_score,
