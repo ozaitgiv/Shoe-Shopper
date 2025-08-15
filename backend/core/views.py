@@ -1,7 +1,9 @@
 import os
 import logging
+import time
 
 from inference_sdk import InferenceHTTPClient
+from django.db import models
 
 logger = logging.getLogger(__name__)
 
@@ -201,7 +203,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
 from rest_framework.authtoken.views import obtain_auth_token
 from rest_framework.authtoken.models import Token
 
@@ -1475,3 +1477,201 @@ def delete_account(request):
         {"message": "Account deleted successfully"}, 
         status=status.HTTP_200_OK
     )
+
+@csrf_exempt
+@api_view(['POST'])
+@permission_classes([IsAdminUser])  # Only admin users can trigger price updates
+def update_prices(request):
+    """
+    API endpoint to trigger price updates for shoes
+    Supports bulk updates with automatic selector learning
+    """
+    from .price_scraper import DjangoPriceScraper
+    
+    try:
+        # Get parameters with validation
+        limit = request.data.get('limit', 10)  # Default to 10 shoes
+        update_database = request.data.get('update_database', False)
+        company_filter = request.data.get('company')
+        
+        # Validate limit parameter
+        try:
+            limit = int(limit)
+            if limit < 1 or limit > 100:  # Reasonable bounds
+                return Response(
+                    {"error": "Limit must be between 1 and 100"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        except (ValueError, TypeError):
+            return Response(
+                {"error": "Invalid limit parameter"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Validate company_filter if provided
+        if company_filter and (len(company_filter) > 100 or not company_filter.replace(' ', '').replace('-', '').isalnum()):
+            return Response(
+                {"error": "Invalid company filter"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        logger.info(f"Price update requested", extra={
+            'limit': limit,
+            'update_database': update_database,
+            'company_filter': company_filter,
+            'user': request.user.username
+        })
+        
+        # Build query
+        shoes_query = Shoe.objects.filter(
+            is_active=True,
+            product_url__isnull=False
+        ).exclude(product_url='')
+        
+        if company_filter:
+            shoes_query = shoes_query.filter(company__icontains=company_filter)
+        
+        shoes = shoes_query[:limit]
+        
+        if not shoes:
+            return Response(
+                {"error": "No shoes found matching criteria"}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Initialize scraper and perform updates
+        scraper = DjangoPriceScraper()
+        results = []
+        updated_count = 0
+        discovered_selectors = 0
+        start_time = time.time()
+        max_execution_time = 300  # 5 minute timeout
+        
+        for i, shoe in enumerate(shoes):
+            logger.info(f"Scraping price for {shoe.company} {shoe.model}")
+            
+            result = scraper.scrape_price(shoe.product_url, float(shoe.price_usd))
+            
+            # Convert result to dict for JSON serialization
+            result_dict = {
+                'shoe_id': shoe.id,
+                'company': shoe.company,
+                'model': shoe.model,
+                'url': result.url,
+                'old_price': float(shoe.price_usd),
+                'scraped_price': result.price,
+                'success': result.success,
+                'error': result.error,
+                'method_used': result.method_used,
+                'confidence_score': result.confidence_score,
+                'response_time': result.response_time,
+                'selector_used': result.selector_used
+            }
+            
+            # Update price if successful and confidence is high enough
+            if result.success and result.confidence_score > 0.5 and update_database:
+                shoe.price_usd = result.price
+                shoe.save()
+                updated_count += 1
+                result_dict['price_updated'] = True
+                logger.info(f"Updated price for {shoe}: ${result_dict['old_price']} -> ${result.price}")
+            else:
+                result_dict['price_updated'] = False
+            
+            if result.method_used == "discovered_selector":
+                discovered_selectors += 1
+            
+            results.append(result_dict)
+            
+            # Check for timeout
+            if time.time() - start_time > max_execution_time:
+                logger.warning(f"Price update timed out after processing {i+1} shoes")
+                break
+            
+            # Small delay to be respectful to servers
+            time.sleep(0.5)
+        
+        # Summary statistics
+        successful = sum(1 for r in results if r['success'])
+        high_confidence = sum(1 for r in results if r['success'] and r['confidence_score'] > 0.7)
+        
+        summary = {
+            'total_shoes': len(results),
+            'successful_scrapes': successful,
+            'high_confidence_results': high_confidence,
+            'prices_updated': updated_count,
+            'new_selectors_discovered': discovered_selectors,
+            'success_rate': (successful / len(results)) * 100 if results else 0,
+            'average_response_time': sum(r['response_time'] for r in results) / len(results) if results else 0
+        }
+        
+        logger.info("Price update completed", extra=summary)
+        
+        return Response({
+            'success': True,
+            'summary': summary,
+            'results': results
+        })
+        
+    except Exception as e:
+        logger.exception("Price update failed")
+        return Response(
+            {"error": f"Price update failed: {str(e)}"}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+@api_view(['GET'])
+def price_selector_stats(request):
+    """Get statistics about price selector performance"""
+    from .models import PriceSelector
+    
+    try:
+        total_selectors = PriceSelector.objects.count()
+        active_selectors = PriceSelector.objects.filter(is_active=True).count()
+        domains_covered = PriceSelector.objects.values('domain').distinct().count()
+        
+        # Top performing selectors
+        top_selectors = PriceSelector.objects.filter(
+            total_attempts__gt=0
+        ).annotate(
+            calculated_success_rate=models.F('success_count') * 100.0 / models.F('total_attempts')
+        ).order_by('-calculated_success_rate')[:10]
+        
+        top_selector_data = []
+        for selector in top_selectors:
+            top_selector_data.append({
+                'domain': selector.domain,
+                'selector': selector.selector[:100],  # Truncate long selectors
+                'success_rate': selector.calculated_success_rate,
+                'success_count': selector.success_count,
+                'total_attempts': selector.total_attempts,
+                'last_success': selector.last_success
+            })
+        
+        # Recent discoveries
+        recent_selectors = PriceSelector.objects.order_by('-created_at')[:5]
+        recent_data = []
+        for selector in recent_selectors:
+            recent_data.append({
+                'domain': selector.domain,
+                'selector': selector.selector[:100],
+                'created_at': selector.created_at,
+                'success_rate': selector.success_rate
+            })
+        
+        stats = {
+            'total_selectors': total_selectors,
+            'active_selectors': active_selectors,
+            'domains_covered': domains_covered,
+            'top_performers': top_selector_data,
+            'recent_discoveries': recent_data
+        }
+        
+        return Response(stats)
+        
+    except Exception as e:
+        logger.exception("Failed to get selector stats")
+        return Response(
+            {"error": str(e)}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

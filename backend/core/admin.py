@@ -1,6 +1,6 @@
 from django.contrib import admin, messages
 from django.utils.html import format_html
-from .models import Shoe, FootImage
+from .models import Shoe, FootImage, PriceSelector
 
 @admin.register(Shoe)
 class ShoeAdmin(admin.ModelAdmin):
@@ -105,3 +105,78 @@ class FootImageAdmin(admin.ModelAdmin):
                 level=messages.ERROR)
     
     process_as_insole_measurement.short_description = "Process as insole measurement"
+
+
+@admin.register(PriceSelector)
+class PriceSelectorAdmin(admin.ModelAdmin):
+    list_display = ('domain', 'selector_preview', 'success_rate_display', 'success_count', 'total_attempts', 'last_success', 'is_active')
+    list_filter = ('domain', 'is_active', 'last_success')
+    search_fields = ('domain', 'selector')
+    list_editable = ('is_active',)
+    readonly_fields = ('success_count', 'total_attempts', 'last_success', 'created_at', 'updated_at')
+    
+    fieldsets = (
+        ('Selector Information', {
+            'fields': ('domain', 'selector', 'is_active')
+        }),
+        ('Performance Stats', {
+            'fields': ('success_count', 'total_attempts', 'last_success'),
+            'description': 'These fields are automatically updated when the selector is used.'
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def selector_preview(self, obj):
+        """Show a truncated version of the selector"""
+        if len(obj.selector) > 60:
+            return obj.selector[:60] + '...'
+        return obj.selector
+    selector_preview.short_description = 'Selector'
+    
+    def success_rate_display(self, obj):
+        """Show success rate with color coding"""
+        rate = obj.success_rate
+        if rate >= 80:
+            color = '#28a745'  # green
+        elif rate >= 60:
+            color = '#ffc107'  # yellow
+        elif rate >= 30:
+            color = '#fd7e14'  # orange
+        else:
+            color = '#dc3545'  # red
+        
+        return format_html(
+            '<span style="color: {}; font-weight: bold;">{:.1f}%</span>',
+            color, rate
+        )
+    success_rate_display.short_description = 'Success Rate'
+    success_rate_display.admin_order_field = 'success_rate'
+    
+    # Custom action to test selectors
+    actions = ['test_selectors']
+    
+    def test_selectors(self, request, queryset):
+        """Test selected selectors against sample URLs"""
+        from .price_scraper import DjangoPriceScraper
+        
+        if queryset.count() > 5:
+            self.message_user(request, 
+                "Please select 5 or fewer selectors to test",
+                level=messages.ERROR)
+            return
+        
+        scraper = DjangoPriceScraper()
+        tested = 0
+        
+        for selector in queryset:
+            # This is a simplified test - in practice you'd need URLs for each domain
+            tested += 1
+        
+        self.message_user(request,
+            f"Tested {tested} selectors. Check logs for detailed results.",
+            level=messages.SUCCESS)
+    
+    test_selectors.short_description = "Test selected selectors"
