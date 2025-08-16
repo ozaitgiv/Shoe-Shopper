@@ -191,7 +191,7 @@ export default function RecommendationsPage() {
     checkAuth()
     // Initialize guest session ID for guest users
     initializeGuestSession()
-  }, [checkAuth, initializeGuestSession])
+  }, [])
 
   // Load preferences, categories and shoes when auth check is complete
   useEffect(() => {
@@ -201,12 +201,12 @@ export default function RecommendationsPage() {
       loadCategories()
       loadAllShoes()
     }
-  }, [isLoading, loadAllShoes])
+  }, [isLoading])
 
   // Apply filters and sorting whenever preferences, sorting, or shoes change
   useEffect(() => {
     applyFiltersAndSorting()
-  }, [allShoes, preferences, sortBy, applyFiltersAndSorting])
+  }, [allShoes, preferences, sortBy])
 
   const loadSavedPreferences = () => {
     try {

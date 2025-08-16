@@ -230,7 +230,7 @@ export default function Dashboard() {
     initializeGuestSession()
     // Load dynamic categories
     loadCategories()
-  }, [checkAuth, initializeGuestSession])
+  }, [])
 
   // Set default paper size based on user's location
   useEffect(() => {

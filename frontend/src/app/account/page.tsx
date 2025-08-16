@@ -53,7 +53,7 @@ export default function AccountPage() {
   // Check authentication and get user info
   useEffect(() => {
     checkAuth()
-  }, [checkAuth])
+  }, [])
 
   // Load measurements when user is authenticated
   useEffect(() => {
