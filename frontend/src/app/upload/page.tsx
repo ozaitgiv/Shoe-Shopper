@@ -966,11 +966,9 @@ export default function Dashboard() {
                   ) : (
                     <div className="space-y-4">
                       <div className="relative">
-                        <Image
+                        <img
                           src={uploadedImage || "/placeholder.svg"}
                           alt="Uploaded foot image"
-                          width={600}
-                          height={400}
                           className="w-full h-64 object-contain rounded-lg border bg-gray-50"
                         />
                         {isProcessing && (
