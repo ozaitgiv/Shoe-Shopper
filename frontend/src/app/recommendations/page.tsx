@@ -944,10 +944,7 @@ export default function RecommendationsPage() {
                           alt={`${shoe.company} ${shoe.model}`}
                           className="w-full h-full object-cover"
                           fill
-                          onError={(e) => {
-                            // Fallback if image fails to load
-                            e.currentTarget.src = `/placeholder.svg?height=200&width=200&text=${encodeURIComponent(shoe.company + " " + shoe.model)}`
-                          }}
+                          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                         />
                         {shoe.fit_score && (
                           <div
