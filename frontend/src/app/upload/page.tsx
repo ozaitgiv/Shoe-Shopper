@@ -3,7 +3,6 @@
 import type React from "react"
 import { useState, useEffect } from "react"
 import { Upload, Camera, Ruler, ShoppingBag, User, LogOut, ChevronDown, AlertCircle, Filter } from "lucide-react"
-import Image from "next/image"
 import { useRouter } from "next/navigation"
 
 // API configuration
@@ -1034,7 +1033,7 @@ export default function Dashboard() {
                     {/* Example Image */}
                     <div>
                       <h4 className="font-medium mb-3 text-gray-900">Example Photo</h4>
-                      <Image
+                      <img
                         src="/Images/foot-example.jpg"
                         alt="Example of foot placed on white paper for measurement"
                         width={300}

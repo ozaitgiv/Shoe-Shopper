@@ -15,7 +15,6 @@ import {
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import Image from "next/image"
 
 // API configuration
 const API_BASE_URL = "https://shoeshopper.onrender.com"
@@ -939,12 +938,14 @@ export default function RecommendationsPage() {
                       className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow"
                     >
                       <div className="aspect-square relative bg-gray-50">
-                        <Image
+                        <img
                           src={getShoeImageUrl(shoe) || "/placeholder.svg"}
                           alt={`${shoe.company} ${shoe.model}`}
                           className="w-full h-full object-cover"
-                          fill
-                          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                          onError={(e) => {
+                            // Fallback if image fails to load
+                            e.currentTarget.src = `/placeholder.svg?height=200&width=200&text=${encodeURIComponent(shoe.company + " " + shoe.model)}`
+                          }}
                         />
                         {shoe.fit_score && (
                           <div
