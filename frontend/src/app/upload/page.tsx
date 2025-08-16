@@ -9,7 +9,6 @@ import { useRouter } from "next/navigation"
 // API configuration
 const API_BASE_URL = "https://shoeshopper.onrender.com"
 
-const GENDER_OPTIONS = ["Men", "Women", "Unisex"]
 const BRAND_OPTIONS = [
   "Adidas",
   "Allbirds",
@@ -50,16 +49,17 @@ interface Categories {
 }
 
 // Type validation for cached data
-const validateCategories = (data: any): data is Categories => {
+const validateCategories = (data: unknown): data is Categories => {
+  const typedData = data as any
   return data && 
          typeof data === 'object' &&
-         Array.isArray(data.companies) &&
-         Array.isArray(data.genders) &&
-         Array.isArray(data.widths) &&
-         Array.isArray(data.functions) &&
-         data.genders.every((g: any) => g && typeof g.value === 'string' && typeof g.label === 'string') &&
-         data.widths.every((w: any) => w && typeof w.value === 'string' && typeof w.label === 'string') &&
-         data.functions.every((f: any) => f && typeof f.value === 'string' && typeof f.label === 'string')
+         Array.isArray(typedData.companies) &&
+         Array.isArray(typedData.genders) &&
+         Array.isArray(typedData.widths) &&
+         Array.isArray(typedData.functions) &&
+         typedData.genders.every((g: any) => g && typeof g.value === 'string' && typeof g.label === 'string') &&
+         typedData.widths.every((w: any) => w && typeof w.value === 'string' && typeof w.label === 'string') &&
+         typedData.functions.every((f: any) => f && typeof f.value === 'string' && typeof f.label === 'string')
 }
 
 // Fallback categories to eliminate code duplication
@@ -131,7 +131,6 @@ export default function Dashboard() {
   const [measurementResult, setMeasurementResult] = useState<MeasurementResult | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [uploadProgress, setUploadProgress] = useState(0)
   const [paperSize, setPaperSize] = useState<"letter" | "a4">("letter")
   const [locationDetected, setLocationDetected] = useState(false)
   const [detectedCountry, setDetectedCountry] = useState<string | null>(null)
@@ -147,14 +146,6 @@ export default function Dashboard() {
 
   const [showFilters, setShowFilters] = useState(true)
 
-  // Generate a UUID for guest sessions
-  const generateUUID = () => {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-      const r = Math.random() * 16 | 0
-      const v = c == 'x' ? r : (r & 0x3 | 0x8)
-      return v.toString(16)
-    })
-  }
 
   // Initialize guest session for guest users
   const initializeGuestSession = () => {
@@ -239,7 +230,7 @@ export default function Dashboard() {
     initializeGuestSession()
     // Load dynamic categories
     loadCategories()
-  }, [])
+  }, [checkAuth, initializeGuestSession])
 
   // Set default paper size based on user's location
   useEffect(() => {
@@ -394,7 +385,6 @@ export default function Dashboard() {
   const handleFile = async (file: File) => {
     setError(null)
     setMeasurementResult(null)
-    setUploadProgress(0)
 
     const validationError = validateFile(file)
     if (validationError) {
@@ -596,7 +586,6 @@ export default function Dashboard() {
     setIsProcessing(false)
     setMeasurementResult(null)
     setError(null)
-    setUploadProgress(0)
     
     // Keep the same session ID for guests on reset - don't generate a new one
     // This allows the user to see their previous measurements if they want to
@@ -899,11 +888,11 @@ export default function Dashboard() {
                     <h4 className="font-medium text-gray-900 mb-3">Paper Size</h4>
                     {locationDetected && detectedCountry ? (
                       <p className="text-sm text-gray-600 mb-3">
-                        Based on your location ({detectedCountry}), we've selected {paperSize === 'letter' ? 'US Letter' : 'A4'} paper size. You can change this if needed.
+                        Based on your location ({detectedCountry}), we&apos;ve selected {paperSize === "letter" ? "US Letter" : "A4"} paper size. You can change this if needed.
                       </p>
                     ) : (
                       <p className="text-sm text-gray-600 mb-3">
-                        Select the paper size you're using for accurate measurements.
+                        Select the paper size you&apos;re using for accurate measurements.
                       </p>
                     )}
                     <div className="flex space-x-4">
@@ -917,7 +906,7 @@ export default function Dashboard() {
                           className="text-blue-600 focus:ring-blue-500"
                         />
                         <span className="ml-2 text-sm text-gray-700">
-                          US Letter (8.5" × 11")
+                          US Letter (8.5&quot; × 11&quot;)
                         </span>
                       </label>
                       <label className="flex items-center">
@@ -930,7 +919,7 @@ export default function Dashboard() {
                           className="text-blue-600 focus:ring-blue-500"
                         />
                         <span className="ml-2 text-sm text-gray-700">
-                          A4 (8.27" × 11.69")
+                          A4 (8.27&quot; × 11.69&quot;)
                         </span>
                       </label>
                     </div>
@@ -1006,12 +995,12 @@ export default function Dashboard() {
                             <div>
                               <span className="text-gray-600">Length:</span>
                               <span className="ml-2 font-medium text-green-900">
-                                {measurementResult.length_inches}"
+                                {measurementResult.length_inches}&quot;
                               </span>
                             </div>
                             <div>
                               <span className="text-gray-600">Width:</span>
-                              <span className="ml-2 font-medium text-green-900">{measurementResult.width_inches}"</span>
+                              <span className="ml-2 font-medium text-green-900">{measurementResult.width_inches}&quot;</span>
                             </div>
                           </div>
                           <button
@@ -1045,7 +1034,7 @@ export default function Dashboard() {
                     {/* Example Image */}
                     <div>
                       <h4 className="font-medium mb-3 text-gray-900">Example Photo</h4>
-                      <img
+                      <Image
                         src="/Images/foot-example.jpg"
                         alt="Example of foot placed on white paper for measurement"
                         width={300}

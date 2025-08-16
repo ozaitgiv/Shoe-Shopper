@@ -53,7 +53,7 @@ export default function AccountPage() {
   // Check authentication and get user info
   useEffect(() => {
     checkAuth()
-  }, [])
+  }, [checkAuth])
 
   // Load measurements when user is authenticated
   useEffect(() => {
@@ -348,11 +348,11 @@ const handleDeleteAccount = async () => {
               <div className="p-6">
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <div className="bg-blue-50 rounded-lg p-4 text-center">
-                    <div className="text-3xl font-bold text-blue-600">{latestMeasurement.length_inches}"</div>
+                    <div className="text-3xl font-bold text-blue-600">{latestMeasurement.length_inches}&quot;</div>
                     <div className="text-sm text-gray-600">Length</div>
                   </div>
                   <div className="bg-green-50 rounded-lg p-4 text-center">
-                    <div className="text-3xl font-bold text-green-600">{latestMeasurement.width_inches}"</div>
+                    <div className="text-3xl font-bold text-green-600">{latestMeasurement.width_inches}&quot;</div>
                     <div className="text-sm text-gray-600">Width</div>
                   </div>
                 </div>

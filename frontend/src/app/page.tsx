@@ -46,7 +46,7 @@ const getCSRFToken = async () => {
       // Try to parse as JSON
       const data = JSON.parse(text)
       return data.csrfToken
-    } catch (parseError) {
+    } catch {
       // If JSON parsing fails, try to extract token manually
       const match = text.match(/csrfToken"([^"]+)"/)
       if (match) {
@@ -92,7 +92,7 @@ const getCSRFToken = async () => {
       } else {
         setError(data.error || "Login failed")
       }
-    } catch (error) {
+    } catch {
       setError("Network error. Please try again.")
     } finally {
       setIsLoading(false)
@@ -404,7 +404,7 @@ const getCSRFToken = async () => {
             </form>
             <div className="mt-4 text-center">
               <p className="text-sm text-gray-600">
-                Don't have an account?{" "}
+                Don&apos;t have an account?{" "}
                 <button
                   onClick={() => {
                     setShowLogin(false)
