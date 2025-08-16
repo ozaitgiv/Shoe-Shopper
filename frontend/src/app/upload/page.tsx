@@ -435,7 +435,7 @@ export default function Dashboard() {
       formData.append("paper_size", paperSize)
       
       // Build headers
-      const headers = {}
+      const headers: Record<string, string> = {}
       
       // Only include CSRF token for authenticated users (guests don't need it)
       if (csrfToken && !isGuest) {
@@ -453,7 +453,7 @@ export default function Dashboard() {
       }
 
       // Build fetch options
-      const fetchOptions = {
+      const fetchOptions: RequestInit = {
         method: "POST",
         headers,
         body: formData,
@@ -510,7 +510,7 @@ export default function Dashboard() {
     const poll = async (): Promise<void> => {
       try {
         // Build headers - include auth token only for non-guests
-        const headers = {}
+        const headers: Record<string, string> = {}
         if (!isGuest && token) {
           headers["Authorization"] = `Token ${token}`
         }
