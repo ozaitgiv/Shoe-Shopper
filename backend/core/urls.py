@@ -13,8 +13,6 @@ from .views import (
     shoe_list_with_scores,
     get_categories,
     create_guest_session,
-    update_prices,
-    price_selector_stats,
 )
 
 urlpatterns = [
@@ -42,8 +40,4 @@ urlpatterns = [
     
     # Categories
     path("categories/", get_categories, name="categories"),
-    
-    # Price Updates
-    path("prices/update/", update_prices, name="price-update"),
-    path("prices/selectors/stats/", price_selector_stats, name="price-selector-stats"),
 ]
