@@ -15,6 +15,7 @@ import {
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import Image from "next/image"
 
 // API configuration
 const API_BASE_URL = "https://shoeshopper.onrender.com"
@@ -27,7 +28,6 @@ const CACHE_KEYS = {
 } as const
 
 // Options for filters
-const GENDER_OPTIONS = ["Men", "Women", "Unisex"]
 const BRAND_OPTIONS = [
   "Adidas",
   "Allbirds",
@@ -98,16 +98,17 @@ interface Categories {
 }
 
 // Type validation for cached data
-const validateCategories = (data: any): data is Categories => {
+const validateCategories = (data: unknown): data is Categories => {
+  const typedData = data as any
   return data && 
          typeof data === 'object' &&
-         Array.isArray(data.companies) &&
-         Array.isArray(data.genders) &&
-         Array.isArray(data.widths) &&
-         Array.isArray(data.functions) &&
-         data.genders.every((g: any) => g && typeof g.value === 'string' && typeof g.label === 'string') &&
-         data.widths.every((w: any) => w && typeof w.value === 'string' && typeof w.label === 'string') &&
-         data.functions.every((f: any) => f && typeof f.value === 'string' && typeof f.label === 'string')
+         Array.isArray(typedData.companies) &&
+         Array.isArray(typedData.genders) &&
+         Array.isArray(typedData.widths) &&
+         Array.isArray(typedData.functions) &&
+         typedData.genders.every((g: any) => g && typeof g.value === 'string' && typeof g.label === 'string') &&
+         typedData.widths.every((w: any) => w && typeof w.value === 'string' && typeof w.label === 'string') &&
+         typedData.functions.every((f: any) => f && typeof f.value === 'string' && typeof f.label === 'string')
 }
 
 // Fallback categories to eliminate code duplication
@@ -190,7 +191,7 @@ export default function RecommendationsPage() {
     checkAuth()
     // Initialize guest session ID for guest users
     initializeGuestSession()
-  }, [])
+  }, [checkAuth, initializeGuestSession])
 
   // Load preferences, categories and shoes when auth check is complete
   useEffect(() => {
@@ -200,12 +201,12 @@ export default function RecommendationsPage() {
       loadCategories()
       loadAllShoes()
     }
-  }, [isLoading])
+  }, [isLoading, loadAllShoes])
 
   // Apply filters and sorting whenever preferences, sorting, or shoes change
   useEffect(() => {
     applyFiltersAndSorting()
-  }, [allShoes, preferences, sortBy])
+  }, [allShoes, preferences, sortBy, applyFiltersAndSorting])
 
   const loadSavedPreferences = () => {
     try {
@@ -733,11 +734,11 @@ export default function RecommendationsPage() {
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="text-blue-700">Length:</span>
-                    <span className="font-mono ml-2 text-gray-900">{userMeasurements.length_inches}"</span>
+                    <span className="font-mono ml-2 text-gray-900">{userMeasurements.length_inches}&quot;</span>
                   </div>
                   <div>
                     <span className="text-blue-700">Width:</span>
-                    <span className="font-mono ml-2 text-gray-900">{userMeasurements.width_inches}"</span>
+                    <span className="font-mono ml-2 text-gray-900">{userMeasurements.width_inches}&quot;</span>
                   </div>
                 </div>
               </div>
@@ -938,10 +939,11 @@ export default function RecommendationsPage() {
                       className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow"
                     >
                       <div className="aspect-square relative bg-gray-50">
-                        <img
+                        <Image
                           src={getShoeImageUrl(shoe) || "/placeholder.svg"}
                           alt={`${shoe.company} ${shoe.model}`}
                           className="w-full h-full object-cover"
+                          fill
                           onError={(e) => {
                             // Fallback if image fails to load
                             e.currentTarget.src = `/placeholder.svg?height=200&width=200&text=${encodeURIComponent(shoe.company + " " + shoe.model)}`
